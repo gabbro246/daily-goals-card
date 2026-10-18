@@ -1,0 +1,16 @@
+name: Validate custom card
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run check
+      - run: npm run build
+      - name: Verify built file matches source
+        run: git diff --exit-code -- dist/daily-goals-card.js
