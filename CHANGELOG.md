@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.4
+- Increased and standardized progress border thickness across all views.
+
 ## 0.2.3
 - Added a simple on/off control for the measurement legend.
 - Added filled, outlined, and symbol styles for completed days.

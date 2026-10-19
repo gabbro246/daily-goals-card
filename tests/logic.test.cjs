@@ -126,6 +126,7 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  const day=card._dayView({key:'2026-10-19',value:25,goal:100,status:'progress'});
  assert.match(day,/viewBox="0 0 250 100"/);
  assert.match(day,/d="M 125 8 H 200 A 42 42/);
+ assert.match(day,/stroke-width="12"/);
  assert.match(day,/stroke-dasharray="25 100"/);
 });
 test('status colors, sizes, and outlines are consistent within each visual scale',()=>{
@@ -135,9 +136,9 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.match(source,/--goal-success:var\([^\n]+#43a047/);
  assert.match(source,/--goal-error:var\([^\n]+#db4437/);
  assert.doesNotMatch(source,/goal-small-(?:met|missed)/);
- assert.match(source,/\.dot\{border:2px solid var\(--goal-track\)[^\n]+width:32px;height:32px/);
+ assert.match(source,/\.dot\{border:4px solid var\(--goal-track\)[^\n]+width:32px;height:32px/);
  assert.match(source,/\.mini-dot\{[^\n]+width:12px;height:12px/);
- assert.match(source,/\.mini-dot::after\{[^\n]+border:1\.5px solid var\(--goal-track\)/);
+ assert.match(source,/\.mini-dot::after\{[^\n]+border:2px solid var\(--goal-track\)/);
  assert.match(source,/\.mini-dot\.met::after\{background:var\(--goal-success\);border-color:var\(--goal-success\)/);
  assert.match(source,/\.mini-dot\.missed::after\{border-color:var\(--goal-error\);background:var\(--goal-error\)/);
  assert.match(source,/\.dot\.no-data,.dot\.no-goal\{border-color:var\(--goal-unavailable\);border-style:dashed/);
@@ -218,11 +219,11 @@ test('rolling month and progress rings use fixed marker scales',()=>{
  const rolling=card._rollingMonthView();
  assert.match(rolling,/class="month-grid"/);
  assert.doesNotMatch(rolling,/class="mini-grid"/);
- assert.match(card._weekView(),/stroke-width="2"/);
- assert.match(rolling,/stroke-width="2"/);
- assert.match(card._renderDot(card._days.at(-1),true),/viewBox="0 0 12 12".*r="5.25".*stroke-width="1.5"/);
+ assert.match(card._weekView(),/stroke-width="4"/);
+ assert.match(rolling,/stroke-width="4"/);
+ assert.match(card._renderDot(card._days.at(-1),true),/viewBox="0 0 12 12".*r="5".*stroke-width="2"/);
  card._days=L.makeKeys(L.keyPlus(today,-365),today).map(key=>({key,value:25,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.steps',value:25}]}));
- assert.match(card._miniMonths(),/stroke-width="1.5"/);
+ assert.match(card._miniMonths(),/stroke-width="2"/);
  assert.doesNotMatch(card._miniMonths(),/stroke-width="2.75"/);
 });
 test('calendar labels and long ranges use one consistent layout',()=>{
