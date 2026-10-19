@@ -6,7 +6,7 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../src/daily-goals-card.js'),'utf8');
 const elements=new Map();
 class HTMLElementStub {attachShadow(){const root={innerHTML:'',listeners:{},children:[],addEventListener(name,handler){this.listeners[name]=handler},appendChild(child){this.children.push(child)},getElementById(){return null}};this.shadowRoot=root;return root}}
-const globals={Date,Math,Intl,Number,Set,Map,Array,console,HTMLElement:HTMLElementStub,window:{__DAILY_GOALS_TEST__:{}},customElements:{get(n){return elements.get(n)},define(n,cls){elements.set(n,cls)}},document:{createElement(){return {addEventListener(){},attachShadow(){return {appendChild(){}}}}}}};
+const globals={Date,Math,Intl,Number,Set,Map,Array,console,setInterval(){return 1},clearInterval(){},HTMLElement:HTMLElementStub,window:{__DAILY_GOALS_TEST__:{}},customElements:{get(n){return elements.get(n)},define(n,cls){elements.set(n,cls)}},document:{createElement(){return {addEventListener(){},attachShadow(){return {appendChild(){}}}}}}};
 vm.runInNewContext(source,globals);
 const L=globals.window.__DAILY_GOALS_TEST__;
 test('aggregation choices use native secondary descriptions',()=>{
@@ -88,6 +88,26 @@ test('energy collection key matches HA connection property',()=>{
  const collection={start:new Date('2026-09-01')};
  assert.equal(L.relevantEnergyCollection({connection:{_energy_lovelace:collection},panelUrl:'lovelace'},undefined),collection);
  assert.equal(L.relevantEnergyCollection({connection:{_energy_custom:collection},panelUrl:'lovelace'},'energy_custom'),collection);
+ assert.equal(L.relevantEnergyCollection({connection:{_energy:collection},panelUrl:'lovelace'},undefined),null);
+ assert.equal(L.relevantEnergyCollection({connection:{_energy:collection}},undefined),collection);
+});
+
+test('history loading starts only while connected and restarts after reconnect',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ card._config={entity:'sensor.energy',goal:10};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{},connection:{},panelUrl:'lovelace'};
+ let loads=0;
+ card._load=()=>{loads++;card._loading=true};
+ card._syncPeriod(true);
+ assert.equal(loads,0);
+ card.connectedCallback();
+ assert.equal(loads,1);
+ card.disconnectedCallback();
+ assert.equal(card._loading,false);
+ card.connectedCallback();
+ assert.equal(loads,2);
+ card.disconnectedCallback();
 });
 
 test('measurement entities support legacy cards and prefer plural config',()=>{

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.1
+- Fixed history loading getting stuck on Sidebar and other dashboard layouts.
+- Prevented date selections from unrelated dashboards affecting the card.
+
 ## 0.4.0
 - Added German translations for the card and its settings.
 - Made the daily measurement choices easier to understand and compare.

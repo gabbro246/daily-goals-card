@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.4.0';
+  const VERSION = '0.4.1';
   const DAY_MS = 86400000;
   const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
   const TRANSLATIONS = {
@@ -189,7 +189,7 @@
   };
   const relevantEnergyCollection = (hass, key) => {
     const connection=hass?.connection;if(!connection)return null;
-    const names = key ? [`_${key}`] : [hass?.panelUrl ? `_energy_${hass.panelUrl}` : '_energy', '_energy'];
+    const names = key ? [`_${key}`] : [hass?.panelUrl ? `_energy_${hass.panelUrl}` : '_energy'];
     for (const name of names) if(connection[name]?.start) return connection[name];
     return null;
   };
@@ -307,7 +307,7 @@
     constructor(){
       super();this.attachShadow({mode:'open'});
       this._config=null;this._hass=null;this._period=null;this._signature='';this._selected=null;this._selectedMonth=null;
-      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._lastDataRequest='';this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();
+      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._lastDataRequest='';this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._connected=false;
       this.shadowRoot.innerHTML=`<style>${css}</style><ha-card><div id="content"></div></ha-card>`;
       this.shadowRoot.addEventListener('click', (e)=>{
         const btn=e.target.closest('[data-day],[data-month],[data-toggle-entity],[data-more-info]');if(!btn)return;
@@ -355,7 +355,11 @@
       if(localeChanged||measurementChanged||goal?.last_updated!==priorGoal?.last_updated){this._mergeCurrentDay();this._render()}
     }
     connectedCallback(){
-      this._syncPeriod();
+      this._connected=true;
+      // Dashboard layouts may configure a card before attaching it, or move it
+      // between columns while a request is active. Always start a fresh load
+      // once the final card instance is connected.
+      this._syncPeriod(true);
       this._observeSize();
       this._timer=setInterval(()=>{
         this._syncPeriod();
@@ -363,7 +367,7 @@
         if(now-this._clock>300000){this._clock=now;const today=dateParts(new Date(),this._tz());if(this._period?.start<=today&&this._period?.end>=today)this._load();else {this._mergeCurrentDay();this._render();}}
       },1100);
     }
-    disconnectedCallback(){clearInterval(this._timer);this._timer=null;this._fetchId++;this._resizeObserver?.disconnect();this._resizeObserver=null}
+    disconnectedCallback(){this._connected=false;clearInterval(this._timer);this._timer=null;this._fetchId++;this._loading=false;this._resizeObserver?.disconnect();this._resizeObserver=null}
     getCardSize(){
       const height=this.shadowRoot?.querySelector?.('ha-card')?.offsetHeight;
       return height?Math.max(1,Math.ceil(height/50)):5;
@@ -393,7 +397,7 @@
       const a=dateParts(from,tz),b=dateParts(to,tz),signature=`${a}/${b}/${tz}`;
       if(!force && signature===this._signature)return;
       this._signature=signature;this._period={start:a,end:b};this._selected=null;this._selectedMonth=null;
-      this._load();
+      if(this._connected)this._load();
     }
     async _load(){
       const seq=++this._fetchId, period=this._period, hass=this._hass, config=this._config;
