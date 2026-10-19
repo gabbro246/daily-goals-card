@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.2.0';
+  const VERSION = '0.2.1';
   const DAY_MS = 86400000;
   const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
   const numeric = (value) => {
@@ -140,7 +140,6 @@
       --goal-track:var(--ha-color-border-neutral-quiet,var(--divider-color,rgba(120,120,120,.20)));
       --goal-muted:var(--ha-color-text-secondary,var(--secondary-text-color,#777));
       --goal-ink:var(--ha-color-text-primary,var(--primary-text-color,#212121));
-      --goal-on-success:var(--ha-color-on-success-loud,var(--text-primary-color,#fff));
       --goal-focus:var(--ha-color-focus,var(--primary-color,#03a9f4));
       --goal-icon-background:var(--ha-color-fill-primary-quiet-resting,rgba(3,169,244,.12));
     }
@@ -150,7 +149,7 @@
     .header-icon ha-state-icon{--mdc-icon-size:24px}
     .header-info{min-width:0;flex:1}
     .name{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .subtitle{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .subtitle{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .body{padding:var(--ha-space-3,12px) 10px 10px;min-width:0}
     .fill{width:100%;max-width:500px;margin:0 auto}
     .oval{width:min(100%,460px);aspect-ratio:5 / 2;margin:0 auto;position:relative;display:grid;place-items:center;color:var(--goal-color);border:0;background:transparent;padding:0;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -160,7 +159,7 @@
     .oval svg{width:100%;height:100%;position:absolute;inset:0;overflow:visible}
     .oval .track{stroke:var(--goal-track)}
     .oval .value{stroke:currentColor;stroke-linecap:round}
-    .series-value{fill:none;stroke-linecap:butt;transition:opacity 180ms ease-in-out}
+    .series-value{fill:none;stroke-linecap:round;transition:opacity 180ms ease-in-out}
     .series-value.hidden{opacity:0}
     .oval-text{display:flex;align-items:baseline;position:relative;z-index:1;gap:var(--ha-space-1,4px)}
     .oval-text .measurement{font-size:var(--ha-font-size-3xl,28px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:0}
@@ -172,7 +171,7 @@
     .dot > span{position:relative;z-index:1}
     .oval:focus-visible,.dot:focus-visible,.mini-dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
     .dot[aria-pressed=true]{box-shadow:0 0 0 2px var(--card-background-color,#fff),0 0 0 4px var(--goal-focus)}
-    .dot.met{background:var(--goal-success);border-color:var(--goal-success);color:var(--goal-on-success)}
+    .dot.met{background:transparent;border-color:var(--goal-success);color:var(--goal-success)}
     .dot.missed{border-color:var(--goal-error);color:var(--goal-error)}
     .dot.progress{border-color:transparent}
     .dot.no-data,.dot.no-goal{border-style:dashed}
@@ -190,17 +189,18 @@
     .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-1,4px) 2px;place-items:center}
     .mini-dot{position:relative;width:12px;height:12px;border:0;background:transparent;padding:0;border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box;cursor:pointer}
     .mini-dot::after{content:"";position:absolute;inset:2px;border:1px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
-    .mini-dot.met::after{background:var(--goal-success);border-color:var(--goal-success)}
+    .mini-dot.met::after{background:transparent;border-color:var(--goal-success)}
     .mini-dot.missed::after{border-color:var(--goal-error);background:transparent}
     .mini-dot.progress::after{border:0}
     .mini-dot.no-data::after,.mini-dot.no-goal::after{border-style:dashed}
-    .mini-dot.future{opacity:.2}
+    .mini-dot.future{opacity:.55}
+    .mini-dot.future::after{border-color:var(--goal-muted)}
     .mini-dot.multi-current::after{background:transparent;border:0}
     .mini-dot[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--goal-focus)}
     .mini-dot .progress-ring{inset:2px;width:8px;height:8px}
     .many-months{max-height:320px;overflow:auto;width:100%;padding:0;box-sizing:border-box}
     .many-months.year{max-height:none;overflow:visible}
-    .many-months.year .month-collection{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px)}
+    .many-months.year .month-collection{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px)}
     .many-months.year .mini-grid{gap:3px 1px}
     .drillback{display:flex;align-items:center;border:0;background:transparent;color:var(--goal-color);padding:0 0 var(--ha-space-3,12px);cursor:pointer;font:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-condensed,1.2)}
     .series-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--ha-space-2,8px) var(--ha-space-4,16px);list-style:none;margin:var(--ha-space-3,12px) 0 0;padding:0}
@@ -215,10 +215,8 @@
     .legend-label{max-width:150px;color:var(--goal-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .legend-value{margin-inline-start:var(--ha-space-1,4px);color:var(--goal-muted);white-space:nowrap}
     .legend-toggle:focus-visible,.legend-label:focus-visible{outline:2px solid var(--goal-focus);outline-offset:1px;border-radius:var(--ha-border-radius-sm,4px)}
-    .detail,.summary{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;text-align:center;color:var(--goal-muted)}
-    .detail{margin-top:var(--ha-space-3,12px)}
+    .detail{margin-top:var(--ha-space-3,12px);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;text-align:center;color:var(--goal-muted)}
     .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px}
-    .summary{margin-top:var(--ha-space-3,12px)}
     .muted{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);text-align:center}
     .error{color:var(--goal-error);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-normal,1.6);text-align:center;padding:var(--ha-space-4,16px)}
     @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{gap:3px 1px}.mini-dot{width:10px;height:10px}.mini-dot::after{inset:2px}.mini-dot .progress-ring{inset:2px;width:6px;height:6px}.strip .dot{width:28px;height:28px}}
@@ -424,6 +422,29 @@
       if(row.goal===0)return row.status==='met'?100:0;
       return Math.max(0,Math.min(100,100*row.value/row.goal));
     }
+    _percentageText(row){
+      if(row?.value==null)return 'No data';
+      if(row?.goal==null)return 'Goal unavailable';
+      if(row.goal===0)return 'Goal is zero';
+      const label=this._config?.direction==='max'?'limit':'goal';
+      return `${this._format(100*row.value/row.goal)}% of ${label}`;
+    }
+    _dayState(row){
+      if(!row||row.status==='future')return 'Future day';
+      if(row.value==null)return 'No data';
+      if(row.goal==null)return 'Goal unavailable';
+      const unit=unitLabel(this._config,this._hass);
+      const amount=value=>`${this._format(value)}${unit?` ${unit}`:``}`;
+      const remaining=row.goal-row.value;
+      if(this._config?.direction==='max'){
+        if(remaining>0)return `${amount(remaining)} remaining`;
+        if(remaining===0)return 'At the limit';
+        return `${amount(-remaining)} over limit`;
+      }
+      if(remaining>0)return `${amount(remaining)} left`;
+      if(remaining===0)return 'Goal reached';
+      return `${amount(-remaining)} above goal`;
+    }
     _isMultiCurrent(row){
       return measurementEntities(this._config).length>1&&row?.key===dateParts(new Date(),this._tz())&&(row.parts?.length||0)>1;
     }
@@ -506,7 +527,7 @@
       const row=this._days.find(d=>d.key===this._selected);
       if(!row)return '';
       const unit=unitLabel(this._config,this._hass);
-      return `<div class="detail"><strong>${this._format(row.value)} ${escapeHTML(unit)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._label(row))}</div>`;
+      return `<div class="detail"><strong>${this._format(row.value)} ${escapeHTML(unit)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._percentageText(row))}</div>`;
     }
     _weekView(){
       return `<div class="fill"><div class="strip">${this._days.map(row=>`<div class="cell"><span>${escapeHTML(this._weekday(row.key))}</span>${this._renderDot(row)}</div>`).join('')}</div>${this._selectionDetail()}</div>`;
@@ -532,15 +553,17 @@
       const met=evaluated.filter(row=>row.status==='met').length;
       return `${met} of ${evaluated.length} ${evaluated.length===1?'day':'days'} met`;
     }
+    _stateText(kind){
+      if(this._loading)return 'Loading history…';
+      if(this._error)return 'Unavailable';
+      return kind==='day'?this._dayState(this._days[0]):this._summaryText();
+    }
     _render(){
       if(!this._config||!this._hass)return;
       const root=this.shadowRoot.getElementById('content');if(!root)return;
-      const c=this._config,hass=this._hass,rows=this._days,goal=c.goal_entity?null:numeric(c.goal);
+      const c=this._config,hass=this._hass,rows=this._days;
       const entityIds=measurementEntities(c),primary=entityIds[0];
       const title=c.title||(entityIds.length>1?'Daily total':hass.states?.[primary]?.attributes?.friendly_name||primary);
-      const unit=unitLabel(c,hass);
-      const target=c.goal_entity?(hass.states?.[c.goal_entity]?.attributes?.friendly_name||c.goal_entity):`${this._format(goal)} ${unit}`;
-      const rule=c.direction==='max'?`${target} or less per day`:`${target} or more per day`;
       const kind=rows.length?getLayout(rows.map(d=>d.key)):'day';
       let stage='';
       if(this._error)stage=`<div class="error">${escapeHTML(this._error)}</div>`;
@@ -550,8 +573,8 @@
       else if(kind==='month')stage=this._monthView();
       else stage=this._miniMonths();
       const legend=!this._loading&&!this._error?this._seriesLegend():'';
-      const summary=!this._loading&&!this._error?`<div class="summary">${this._summaryText()}</div>`:'';
-      root.innerHTML=`<div class="header"><div class="header-icon" aria-hidden="true"><ha-state-icon></ha-state-icon></div><div class="header-info"><div class="name">${escapeHTML(title)}</div><div class="subtitle">Goal: ${escapeHTML(rule)}</div></div></div><div class="body">${stage}${legend}${summary}</div>`;
+      const state=this._stateText(kind);
+      root.innerHTML=`<div class="header"><div class="header-icon" aria-hidden="true"><ha-state-icon></ha-state-icon></div><div class="header-info"><div class="name">${escapeHTML(title)}</div><div class="subtitle">${escapeHTML(state)}</div></div></div><div class="body">${stage}${legend}</div>`;
       const stateIcon=root.querySelector('ha-state-icon');
       if(stateIcon){stateIcon.hass=hass;stateIcon.stateObj=hass.states?.[primary];if(c.icon)stateIcon.icon=c.icon;}
     }

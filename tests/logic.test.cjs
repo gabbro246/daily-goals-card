@@ -85,6 +85,15 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  assert.match(day,/d="M 125 8 H 200 A 42 42/);
  assert.match(day,/stroke-dasharray="25 100"/);
 });
+test('compact status visuals are consistent and readable',()=>{
+ assert.match(source,/\.series-value\{fill:none;stroke-linecap:round/);
+ assert.match(source,/\.dot\.met\{background:transparent;border-color:var\(--goal-success\)/);
+ assert.match(source,/\.mini-dot\.met::after\{background:transparent;border-color:var\(--goal-success\)/);
+ assert.match(source,/\.mini-dot\.future\{opacity:\.55\}/);
+ assert.match(source,/\.mini-dot\.future::after\{border-color:var\(--goal-muted\)\}/);
+ assert.match(source,/\.many-months\.year \.month-collection\{grid-template-columns:repeat\(3,/);
+ assert.doesNotMatch(source,/class="summary"/);
+});
 test('multiple measurement entities are summed only when all have data',()=>{
  const Card=elements.get('daily-goals-card');
  const card=new Card();
@@ -143,6 +152,8 @@ test('every day view exposes toggleable day selection',()=>{
  card._selected=row.key;
  assert.match(card._dayView(row),/aria-pressed="true"/);
  assert.match(card._dayView(row),/class="detail"/);
+ assert.match(card._dayView(row),/25% of goal/);
+ assert.doesNotMatch(card._dayView(row),/In progress<\/div>/);
  assert.match(card._renderDot(row,true),/aria-pressed="true"/);
  const click={target:{closest:()=>({dataset:{day:row.key}})}};
  card.shadowRoot.listeners.click(click);
@@ -151,17 +162,22 @@ test('every day view exposes toggleable day selection',()=>{
  assert.equal(card._selected,row.key);
  assert.equal(Object.hasOwn(card.getGridOptions(),'rows'),false);
 });
-test('goal summary is present for single-day and multi-day ranges',()=>{
+test('card state uses remaining amount for a day and completion count for ranges',()=>{
  const Card=elements.get('daily-goals-card');
  const card=new Card();
- card._hass={config:{time_zone:'UTC'}};
- card._days=[{key:'2020-01-01',status:'met'}];
- assert.equal(card._summaryText(),'1 of 1 day met');
+ card._config={goal:100,direction:'min',unit:'steps'};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ card._days=[{key:'2020-01-01',value:25,goal:100,status:'missed'}];
+ assert.equal(card._stateText('day'),'75 steps left');
+ assert.equal(card._percentageText(card._days[0]),'25% of goal');
+ card._config.direction='max';
+ assert.equal(card._stateText('day'),'75 steps remaining');
+ assert.equal(card._percentageText(card._days[0]),'25% of limit');
  card._days=[
   {key:'2020-01-01',status:'met'},
   {key:'2020-01-02',status:'missed'},
   {key:'2020-01-03',status:'progress'},
   {key:'2999-01-01',status:'future'},
  ];
- assert.equal(card._summaryText(),'1 of 3 days met');
+ assert.equal(card._stateText('week'),'1 of 3 days met');
 });

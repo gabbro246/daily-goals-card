@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1
+- Moved goal summaries below the title and added percentage details for selected days.
+- Made progress and status rings clearer and more consistent.
+- Changed the year view to show three months per row.
+
 ## 0.2.0
 - Added combined goals for multiple measurement entities.
 - Added colored current-day progress with a graph-style legend.
