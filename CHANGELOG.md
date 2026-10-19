@@ -2,8 +2,9 @@
 
 ## 0.2.3
 - Added a simple on/off control for the measurement legend.
-- Improved the Last 30 Days layout and made compact status markers easier to distinguish.
-- Made today's progress ring clearer in week and year views.
+- Added filled, outlined, and symbol styles for completed days.
+- Improved the Last 30 Days layout.
+- Unified goal colors, marker sizes, and line thicknesses across views.
 
 ## 0.2.2
 - Added clearer descriptions for choosing a daily measurement calculation.

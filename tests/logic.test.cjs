@@ -92,6 +92,28 @@ test('legend visibility is controlled by one boolean setting',()=>{
  assert.equal(L.shouldShowLegend({entities:['sensor.one','sensor.two'],show_legend:false}),false);
  assert.match(source,/name:'show_legend',selector:\{boolean:\{\}\}/);
 });
+test('completed day markers support filled, outlined, and symbol styles',()=>{
+ const Card=elements.get('daily-goals-card');
+ assert.equal(Card.getStubConfig({},['sensor.one']).finished_style,'filled');
+ assert.equal(L.finishedStyle({}),'filled');
+ assert.equal(L.finishedStyle({finished_style:'outline'}),'outline');
+ assert.equal(L.finishedStyle({finished_style:'symbols'}),'symbols');
+ assert.equal(L.finishedStyle({finished_style:'invalid'}),'filled');
+ assert.match(source,/name:'finished_style',selector:\{select:\{options:\[\{value:'filled',label:'Filled'\},\{value:'outline',label:'Outlined'\},\{value:'symbols',label:'Symbols'\}\]\}\}/);
+ const card=new Card();
+ card._config={entity:'sensor.steps',goal:100};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ const met={key:'2020-01-01',value:100,goal:100,status:'met'};
+ const missed={key:'2020-01-02',value:20,goal:100,status:'missed'};
+ assert.match(card._renderDot(met),/class="dot met finished-filled"/);
+ card._config.finished_style='outline';
+ assert.match(card._renderDot(met),/class="dot met finished-outline"/);
+ assert.match(card._renderDot(missed,true),/class="mini-dot missed finished-outline"/);
+ card._config.finished_style='symbols';
+ assert.match(card._renderDot(met),/<span>&#10003;<\/span>/);
+ assert.match(card._renderDot(missed),/<span>&times;<\/span>/);
+ assert.match(card._renderDot(met,true),/class="mini-dot met finished-symbols"/);
+});
 
 test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  const Card=elements.get('daily-goals-card');
@@ -106,16 +128,25 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  assert.match(day,/d="M 125 8 H 200 A 42 42/);
  assert.match(day,/stroke-dasharray="25 100"/);
 });
-test('compact status visuals are consistent and readable',()=>{
+test('status colors, sizes, and outlines are consistent within each visual scale',()=>{
  assert.match(source,/\.series-value\{fill:none;stroke-linecap:butt/);
  assert.match(source,/\.series-cap\{fill:none;stroke-linecap:round/);
- assert.match(source,/\.dot\.met\{background:var\(--goal-success\)/);
- assert.match(source,/\.dot\.missed\{background:var\(--goal-error\)/);
- assert.match(source,/\.mini-dot\.met::after\{background:var\(--goal-small-met\)/);
- assert.match(source,/\.mini-dot\.missed::after\{border-color:var\(--goal-small-missed\);background:var\(--goal-small-missed\)/);
+ assert.match(source,/\.cell > span,.weekday,.month-button\{font-size:var\(--ha-font-size-s,12px\);font-weight:var\(--ha-font-weight-normal,400\)[^\n]+color:var\(--goal-muted\)\}/);
+ assert.match(source,/--goal-success:var\([^\n]+#43a047/);
+ assert.match(source,/--goal-error:var\([^\n]+#db4437/);
+ assert.doesNotMatch(source,/goal-small-(?:met|missed)/);
+ assert.match(source,/\.dot\{border:2px solid var\(--goal-track\)[^\n]+width:32px;height:32px/);
+ assert.match(source,/\.mini-dot\{[^\n]+width:12px;height:12px/);
+ assert.match(source,/\.mini-dot::after\{[^\n]+border:1\.5px solid var\(--goal-track\)/);
+ assert.match(source,/\.mini-dot\.met::after\{background:var\(--goal-success\);border-color:var\(--goal-success\)/);
+ assert.match(source,/\.mini-dot\.missed::after\{border-color:var\(--goal-error\);background:var\(--goal-error\)/);
  assert.match(source,/\.dot\.no-data,.dot\.no-goal\{border-color:var\(--goal-unavailable\);border-style:dashed/);
- assert.match(source,/\.mini-dot\.future\{opacity:\.55\}/);
- assert.match(source,/\.mini-dot\.future::after\{border-color:var\(--goal-muted\)\}/);
+ assert.match(source,/\.dot\.future\{border-color:var\(--goal-unavailable\);color:var\(--goal-unavailable\)\}/);
+ assert.match(source,/\.mini-dot\.future::after\{border-color:var\(--goal-unavailable\)\}/);
+ assert.doesNotMatch(source,/\.dot\.future\{opacity:/);
+ assert.doesNotMatch(source,/\.mini-dot\.future\{opacity:/);
+ assert.doesNotMatch(source,/\.month-grid \.dot\{width:clamp/);
+ assert.doesNotMatch(source,/\.strip \.dot\{width:28px/);
  assert.match(source,/\.month-collection\{display:grid;grid-template-columns:repeat\(3,/);
  assert.match(source,/\.many-months\.unscrolled\{max-height:none;overflow:visible\}/);
  assert.doesNotMatch(source,/class="summary"/);
@@ -177,7 +208,7 @@ test('current day uses stacked entity colors and a toggleable graph legend',()=>
  assert.match(singleLegend,/First counter/);
  assert.doesNotMatch(singleLegend,/data-toggle-entity/);
 });
-test('rolling month layout and emphasized current rings use full-size calendar styling',()=>{
+test('rolling month and progress rings use fixed marker scales',()=>{
  const Card=elements.get('daily-goals-card');
  const card=new Card();
  const today=L.dateParts(new Date(),'UTC');
@@ -187,10 +218,12 @@ test('rolling month layout and emphasized current rings use full-size calendar s
  const rolling=card._rollingMonthView();
  assert.match(rolling,/class="month-grid"/);
  assert.doesNotMatch(rolling,/class="mini-grid"/);
- assert.match(card._weekView(),/stroke-width="2.75"/);
- assert.match(card._renderDot(card._days.at(-1),true,true),/stroke-width="2.75"/);
+ assert.match(card._weekView(),/stroke-width="2"/);
+ assert.match(rolling,/stroke-width="2"/);
+ assert.match(card._renderDot(card._days.at(-1),true),/viewBox="0 0 12 12".*r="5.25".*stroke-width="1.5"/);
  card._days=L.makeKeys(L.keyPlus(today,-365),today).map(key=>({key,value:25,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.steps',value:25}]}));
- assert.match(card._miniMonths(),/stroke-width="2.75"/);
+ assert.match(card._miniMonths(),/stroke-width="1.5"/);
+ assert.doesNotMatch(card._miniMonths(),/stroke-width="2.75"/);
 });
 test('calendar labels and long ranges use one consistent layout',()=>{
  const Card=elements.get('daily-goals-card');

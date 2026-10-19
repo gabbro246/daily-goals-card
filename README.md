@@ -79,6 +79,8 @@ The card adds their daily values together. For today, each entity has its own co
 
 Use the **Show measurement legend** switch in the card editor, or set `show_legend: true` or `show_legend: false` in YAML. New cards default to hiding the legend.
 
+Use **Completed day markers** to show past results as **Filled**, **Outlined**, or **Symbols**. The YAML values are `filled`, `outline`, and `symbols`; new cards default to `filled`.
+
 ### Use a changing goal
 
 Select a goal entity instead of entering a fixed number when your target can change:

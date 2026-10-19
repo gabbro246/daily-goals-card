@@ -52,6 +52,8 @@
       .filter(id=>typeof id==='string'&&id)
   )];
   const shouldShowLegend = (config) => config?.show_legend === true || (config?.show_legend === undefined && config?.legend === 'show');
+  const FINISHED_STYLES = new Set(['filled','outline','symbols']);
+  const finishedStyle = (config) => FINISHED_STYLES.has(config?.finished_style) ? config.finished_style : 'filled';
   const unitLabel = (config,hass) => config.unit || hass?.states?.[measurementEntities(config)[0]]?.attributes?.unit_of_measurement || '';
   const stateValue = (state) => numeric(state?.state);
   const dailyFromStats = (rows, aggregation, tz) => {
@@ -139,8 +141,6 @@
       --goal-color:var(--ha-color-fill-primary-loud-resting,var(--primary-color,#03a9f4));
       --goal-success:var(--ha-color-fill-success-loud-resting,var(--success-color,#43a047));
       --goal-error:var(--ha-color-fill-danger-loud-resting,var(--error-color,#db4437));
-      --goal-small-met:var(--ha-color-fill-primary-loud-resting,var(--info-color,#039be5));
-      --goal-small-missed:var(--ha-color-fill-warning-loud-resting,var(--warning-color,#ffa600));
       --goal-track:var(--ha-color-border-neutral-quiet,var(--divider-color,rgba(120,120,120,.20)));
       --goal-muted:var(--ha-color-text-secondary,var(--secondary-text-color,#777));
       --goal-unavailable:var(--state-unavailable-color,var(--disabled-text-color,#bdbdbd));
@@ -174,38 +174,47 @@
     .oval-text .unit{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);color:var(--goal-muted)}
     .strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;place-items:center;max-width:500px;margin:0 auto;width:100%}
     .cell{display:flex;flex-direction:column;align-items:center;gap:var(--ha-space-2,8px);min-width:0}
-    .cell > span,.weekday{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted)}
+    .cell > span,.weekday,.month-button{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted)}
     .dot{border:2px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
     .dot > span{position:relative;z-index:1}
     .oval:focus-visible,.dot:focus-visible,.mini-dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
     .dot[aria-pressed=true]{box-shadow:0 0 0 2px var(--card-background-color,#fff),0 0 0 4px var(--goal-focus)}
     .dot.met{background:var(--goal-success);border-color:var(--goal-success);color:var(--goal-on-success)}
     .dot.missed{background:var(--goal-error);border-color:var(--goal-error);color:var(--goal-on-error)}
+    .dot.met.finished-outline{background:transparent;border-color:var(--goal-success);color:var(--goal-success)}
+    .dot.missed.finished-outline{background:transparent;border-color:var(--goal-error);color:var(--goal-error)}
+    .dot.finished-symbols{background:transparent;border-color:transparent}
+    .dot.met.finished-symbols{color:var(--goal-success)}
+    .dot.missed.finished-symbols{color:var(--goal-error)}
+    .dot.finished-symbols > span{font-size:18px;font-weight:var(--ha-font-weight-bold,700)}
     .dot.progress{border-color:transparent}
     .dot.no-data,.dot.no-goal{border-color:var(--goal-unavailable);border-style:dashed;color:var(--goal-unavailable)}
-    .dot.future{opacity:.25}
+    .dot.future{border-color:var(--goal-unavailable);color:var(--goal-unavailable)}
     .dot.multi-current{background:transparent;border-color:transparent;color:var(--goal-muted)}
     .progress-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
     .progress-ring .track{fill:none;stroke:var(--goal-track)}
     .progress-ring .value{fill:none;stroke:var(--goal-color);stroke-linecap:round}
     .progress-ring .series-value,.progress-ring .series-cap{fill:none}
     .month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;align-items:center;justify-items:center;max-width:430px;margin:0 auto;width:100%}
-    .month-grid .dot{width:clamp(28px,7vw,32px);height:clamp(28px,7vw,32px)}
     .month-collection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px);width:100%}
     .mini-month{padding:0;min-width:0}
-    .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;color:var(--goal-ink);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.1px;margin:0 0 var(--ha-space-2,8px);cursor:pointer}
+    .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;margin:0 0 var(--ha-space-2,8px);cursor:pointer}
     .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-1,4px) 2px;place-items:center}
     .mini-dot{position:relative;width:12px;height:12px;border:0;background:transparent;padding:0;border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box;cursor:pointer}
-    .mini-dot::after{content:"";position:absolute;inset:2px;border:1px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
-    .mini-dot.met::after{background:var(--goal-small-met);border-color:var(--goal-small-met)}
-    .mini-dot.missed::after{border-color:var(--goal-small-missed);background:var(--goal-small-missed)}
+    .mini-dot::after{content:"";position:absolute;inset:0;border:1.5px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
+    .mini-dot.met::after{background:var(--goal-success);border-color:var(--goal-success)}
+    .mini-dot.missed::after{border-color:var(--goal-error);background:var(--goal-error)}
+    .mini-dot.met.finished-outline::after{background:transparent;border-color:var(--goal-success)}
+    .mini-dot.missed.finished-outline::after{background:transparent;border-color:var(--goal-error)}
+    .mini-dot.finished-symbols::after{inset:0;border:0;background:transparent;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
+    .mini-dot.met.finished-symbols::after{content:"\\2713";color:var(--goal-success)}
+    .mini-dot.missed.finished-symbols::after{content:"\\00d7";color:var(--goal-error)}
     .mini-dot.progress::after{border:0}
     .mini-dot.no-data::after,.mini-dot.no-goal::after{border-color:var(--goal-unavailable);border-style:dashed}
-    .mini-dot.future{opacity:.55}
-    .mini-dot.future::after{border-color:var(--goal-muted)}
+    .mini-dot.future::after{border-color:var(--goal-unavailable)}
     .mini-dot.multi-current::after{background:transparent;border:0}
     .mini-dot[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--goal-focus)}
-    .mini-dot .progress-ring{inset:2px;width:8px;height:8px}
+    .mini-dot .progress-ring{inset:0;width:12px;height:12px}
     .many-months{max-height:320px;overflow:auto;width:100%;padding:0;box-sizing:border-box}
     .many-months.unscrolled{max-height:none;overflow:visible}
     .many-months .mini-grid{gap:3px 1px}
@@ -228,7 +237,7 @@
     .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px}
     .muted{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);text-align:center}
     .error{color:var(--goal-error);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-normal,1.6);text-align:center;padding:var(--ha-space-4,16px)}
-    @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{gap:3px 1px}.mini-dot{width:10px;height:10px}.mini-dot::after{inset:2px}.mini-dot .progress-ring{inset:2px;width:6px;height:6px}.strip .dot{width:28px;height:28px}}
+    @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{gap:3px 1px}}
   `;
 
   class DailyGoalsCard extends HTMLElement {
@@ -253,7 +262,7 @@
     static getConfigElement(){return document.createElement('daily-goals-card-editor')}
     static getStubConfig(hass,entities=[]){
       const pick=entities.find(e=>e.startsWith('sensor.'))||'sensor.daily_steps';
-      return {type:'custom:daily-goals-card',entities:[pick],goal:6000,direction:'min',aggregation:'max',show_legend:false};
+      return {type:'custom:daily-goals-card',entities:[pick],goal:6000,direction:'min',aggregation:'max',finished_style:'filled',show_legend:false};
     }
     setConfig(config){
       if(config?.entity!==undefined&&typeof config.entity!=='string')throw new Error('entity must be an entity ID.');
@@ -264,6 +273,7 @@
       if(config.collection_key && !config.collection_key.startsWith('energy_'))throw new Error('collection_key must begin with energy_.');
       if(config.direction && !['min','max'].includes(config.direction))throw new Error('direction must be min or max.');
       if(config.aggregation && !VALID_AGG.has(config.aggregation))throw new Error('aggregation must be change, max, min, mean, or state.');
+      if(config.finished_style && !FINISHED_STYLES.has(config.finished_style))throw new Error('finished_style must be filled, outline, or symbols.');
       if(config.show_legend!==undefined && typeof config.show_legend!=='boolean')throw new Error('show_legend must be true or false.');
       const key=JSON.stringify(config);
       if(key!==JSON.stringify(this._config)){this._config={...config};this._signature='';this._lastDataRequest='';this._selected=null;this._selectedMonth=null;this._hiddenEntities.clear();this._syncPeriod(true)}
@@ -475,8 +485,8 @@
         return result;
       });
     }
-    _stackedRing(row,mini=false,emphasized=false){
-      const size=mini?16:32,center=size/2,radius=mini?7:15,stroke=emphasized?2.75:2;
+    _stackedRing(row,mini=false){
+      const size=mini?12:32,center=size/2,radius=mini?5.25:15,stroke=mini?1.5:2;
       const segments=this._seriesSegments(row).filter(segment=>segment.length>0);
       const values=segments.map(segment=>`<circle class="series-value${segment.hidden?' hidden':''}" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${segment.length.toFixed(3)} ${(100-segment.length).toFixed(3)}" stroke-dashoffset="${(-segment.offset).toFixed(3)}" transform="rotate(-90 ${center} ${center})" style="stroke:${segment.color}"/>`).join('');
       const total=segments.length?segments.at(-1).offset+segments.at(-1).length:0;
@@ -490,21 +500,22 @@
       const caps=segments.length&&total<99.999?[[segments[0],0],[segments.at(-1),total]].map(([segment,offset])=>`<path class="series-cap${segment.hidden?' hidden':''}" d="${path}" pathLength="100" stroke-width="8" fill="none" stroke-dasharray="0 100" stroke-dashoffset="${(-offset).toFixed(3)}" style="stroke:${segment.color}"/>`).join(''):'';
       return values+caps;
     }
-    _progressRing(pct,mini=false,emphasized=false){
-      const size=mini?16:32,center=size/2,radius=mini?7:15,stroke=emphasized?2.75:2;
+    _progressRing(pct,mini=false){
+      const size=mini?12:32,center=size/2,radius=mini?5.25:15,stroke=mini?1.5:2;
       return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" cx="${center}" cy="${center}" r="${radius}" stroke-width="${stroke}"/><circle class="value" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${pct} 100" transform="rotate(-90 ${center} ${center})"/></svg>`;
     }
-    _renderDot(row,mini=false,emphasized=false){
+    _renderDot(row,mini=false){
       if(!row)return '<span></span>';
       const pct=this._progress(row).toFixed(2),multiCurrent=this._isMultiCurrent(row);
-      const ring=multiCurrent?this._stackedRing(row,mini,emphasized):(row.status==='progress'?this._progressRing(pct,mini,emphasized):'');
-      const active=this._selected===row.key,currentClass=multiCurrent?' multi-current':'';
+      const ring=multiCurrent?this._stackedRing(row,mini):(row.status==='progress'?this._progressRing(pct,mini):'');
+      const isFinished=row.key<dateParts(new Date(),this._tz())&&['met','missed'].includes(row.status);
+      const active=this._selected===row.key,currentClass=multiCurrent?' multi-current':'',finishedClass=isFinished?` finished-${finishedStyle(this._config)}`:'';
       const dayLabel=`${this._formatDate(row.key)}: ${this._label(row)}`;
-      if(mini)return `<button type="button" class="mini-dot ${row.status}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(dayLabel)}" title="${escapeHTML(dayLabel)}">${ring}</button>`;
-      const sym=row.status==='no-goal'||row.status==='no-data'?'–':Number(row.key.slice(-2));
-      return `<button type="button" class="dot ${row.status}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${ring}<span>${sym}</span></button>`;
+      if(mini)return `<button type="button" class="mini-dot ${row.status}${finishedClass}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(dayLabel)}" title="${escapeHTML(dayLabel)}">${ring}</button>`;
+      const sym=isFinished&&finishedStyle(this._config)==='symbols'?(row.status==='met'?'&#10003;':'&times;'):(row.status==='no-goal'||row.status==='no-data'?'–':Number(row.key.slice(-2)));
+      return `<button type="button" class="dot ${row.status}${finishedClass}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${ring}<span>${sym}</span></button>`;
     }
-    _monthGrid(year,month,small=false,emphasized=false){
+    _monthGrid(year,month,small=false){
       const limit=daysInMonth(year,month),prefix=weekOffset(year,month),map=new Map(this._days.map(d=>[d.key,d]));
       let cells='';
       if(!small){
@@ -514,7 +525,7 @@
       for(let i=0;i<prefix;i++)cells+='<span></span>';
       for(let d=1;d<=limit;d++){
         const key=`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        cells+=this._renderDot(map.get(key),small,emphasized);
+        cells+=this._renderDot(map.get(key),small);
       }
       return `<div class="${small?'mini-grid':'month-grid'}">${cells}</div>`;
     }
@@ -523,13 +534,13 @@
         const [year,month]=this._selectedMonth.split('-').map(Number);
         return `<div class="fill"><button type="button" class="drillback" data-month="all">‹&nbsp; All months</button>${this._monthGrid(year,month)}${this._selectionDetail()}</div>`;
       }
-      const months=[...new Set(this._days.map(d=>d.key.slice(0,7)))],yearSized=this._days.length>=365&&this._days.length<=367;
+      const months=[...new Set(this._days.map(d=>d.key.slice(0,7)))];
       const unscrolled=months.length<=13;
       return `<div class="many-months${unscrolled?' unscrolled':''}"><div class="month-collection">${months.map(month=>{
         const [year,m]=month.split('-').map(Number);
         const title=this._formatDate(month+'-01',true);
         const shortTitle=new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',year:'numeric',month:'short'}).format(new Date(month+'-01T12:00:00Z'));
-        return `<div class="mini-month"><button class="month-button" data-month="${month}" aria-label="Select ${escapeHTML(title)}">${escapeHTML(shortTitle)}</button>${this._monthGrid(year,m,true,yearSized)}</div>`;
+        return `<div class="mini-month"><button class="month-button" data-month="${month}" aria-label="Select ${escapeHTML(title)}">${escapeHTML(shortTitle)}</button>${this._monthGrid(year,m,true)}</div>`;
       }).join('')}</div></div>${this._selectionDetail()}`;
     }
     _dayView(row){
@@ -547,7 +558,7 @@
       return `<div class="detail"><strong>${this._format(row.value)} ${escapeHTML(unit)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._percentageText(row))}</div>`;
     }
     _weekView(){
-      return `<div class="fill"><div class="strip">${this._days.map(row=>`<div class="cell"><span>${escapeHTML(this._weekday(row.key))}</span>${this._renderDot(row,false,true)}</div>`).join('')}</div>${this._selectionDetail()}</div>`;
+      return `<div class="fill"><div class="strip">${this._days.map(row=>`<div class="cell"><span>${escapeHTML(this._weekday(row.key))}</span>${this._renderDot(row)}</div>`).join('')}</div>${this._selectionDetail()}</div>`;
     }
     _monthView(){
       const [year,month]=this._days[0].key.split('-').map(Number);
@@ -623,15 +634,16 @@
     {name:'goal_entity',selector:{entity:{domain:['sensor','number','input_number']}}},
     {name:'direction',selector:{select:{options:[{value:'min',label:'At least (minimum)'},{value:'max',label:'At most (maximum)'}]}}},
     {name:'aggregation',selector:{select:{mode:'box',box_max_columns:1,options:AGGREGATION_OPTIONS}}},
+    {name:'finished_style',selector:{select:{options:[{value:'filled',label:'Filled'},{value:'outline',label:'Outlined'},{value:'symbols',label:'Symbols'}]}}},
     {name:'show_legend',selector:{boolean:{}}},
     {name:'unit',selector:{text:{}}},
     {name:'collection_key',selector:{text:{}}},
   ];
-  const FORM_LABELS={entities:'Measurement entities',title:'Card title (optional)',icon:'Icon (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',show_legend:'Show measurement legend',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
+  const FORM_LABELS={entities:'Measurement entities',title:'Card title (optional)',icon:'Icon (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',finished_style:'Completed day markers',show_legend:'Show measurement legend',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
   class DailyGoalsCardEditor extends HTMLElement {
     constructor(){super();this.attachShadow({mode:'open'});this._form=document.createElement('ha-form');this._form.schema=FORM_SCHEMA;this._form.computeLabel=(schema)=>FORM_LABELS[schema.name]||schema.name;
       this._form.addEventListener('value-changed',e=>{if(!this._config)return;const values=e.detail.value,newConfig={...this._config,...values,type:'custom:daily-goals-card'};if(Array.isArray(values.entities))delete newConfig.entity;delete newConfig.legend;this._config=newConfig;this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:newConfig},bubbles:true,composed:true}));});this.shadowRoot.appendChild(this._form)}
-    setConfig(config){this._config={...config};const data={...config,entities:measurementEntities(config),show_legend:config.show_legend??config.legend==='show'};delete data.entity;delete data.legend;this._form.data=data;}
+    setConfig(config){this._config={...config};const data={...config,entities:measurementEntities(config),finished_style:finishedStyle(config),show_legend:config.show_legend??config.legend==='show'};delete data.entity;delete data.legend;this._form.data=data;}
     set hass(hass){this._form.hass=hass;}
   }
   if(!customElements.get('daily-goals-card'))customElements.define('daily-goals-card',DailyGoalsCard);
@@ -640,5 +652,5 @@
   if(!window.customCards.some(c=>c.type==='daily-goals-card'))window.customCards.push({type:'daily-goals-card',name:'Daily Goals',description:'Daily goals synced with the Energy date picker',preview:true});
   console.info(`%c DAILY GOALS CARD %c v${VERSION} `,'background:#03a9f4;color:white;font-weight:bold','background:#eee;color:#222');
   // Exposed only for programmatic tests; does not affect Home Assistant UI.
-  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,measurementEntities,shouldShowLegend,dailyFromStats,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,AGGREGATION_OPTIONS};
+  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,measurementEntities,shouldShowLegend,finishedStyle,dailyFromStats,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,AGGREGATION_OPTIONS};
 })();
