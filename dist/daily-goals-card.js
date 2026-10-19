@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.1.2';
+  const VERSION = '0.1.3';
   const DAY_MS = 86400000;
   const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
   const numeric = (value) => {
@@ -138,14 +138,18 @@
       --goal-ink:var(--ha-color-text-primary,var(--primary-text-color,#212121));
       --goal-on-success:var(--ha-color-on-success-loud,var(--text-primary-color,#fff));
       --goal-focus:var(--ha-color-focus,var(--primary-color,#03a9f4));
+      --goal-icon-background:var(--ha-color-fill-primary-quiet-resting,rgba(3,169,244,.12));
     }
     ha-card{overflow:hidden;color:var(--goal-ink)}
-    .header{padding:10px 10px 0;min-width:0}
+    .header{display:flex;align-items:center;gap:10px;min-height:56px;padding:0 10px;min-width:0;box-sizing:border-box}
+    .header-icon{display:grid;place-items:center;width:36px;height:36px;flex:0 0 36px;border-radius:var(--ha-border-radius-pill,18px);background:var(--goal-icon-background);color:var(--goal-color)}
+    .header-icon ha-state-icon{--mdc-icon-size:24px}
+    .header-info{min-width:0;flex:1}
     .name{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .subtitle{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .body{padding:var(--ha-space-3,12px) 10px 10px;min-width:0}
     .fill{width:100%;max-width:500px;margin:0 auto}
-    .oval{width:min(100%,360px);aspect-ratio:2 / 1;margin:0 auto;position:relative;display:grid;place-items:center;color:var(--goal-color)}
+    .oval{width:min(100%,360px);aspect-ratio:2 / 1;margin:0 auto;position:relative;display:grid;place-items:center;color:var(--goal-color);border:0;background:transparent;padding:0;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
     .oval.met{color:var(--goal-success)}
     .oval.missed{color:var(--goal-error)}
     .oval.no-data,.oval.no-goal,.oval.future{color:var(--goal-track)}
@@ -160,8 +164,8 @@
     .cell > span,.weekday{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted)}
     .dot{border:2px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
     .dot > span{position:relative;z-index:1}
-    .dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
-    .dot[aria-pressed=true]{outline:2px solid var(--goal-focus);outline-offset:3px}
+    .oval:focus-visible,.dot:focus-visible,.mini-dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
+    .dot[aria-pressed=true]{box-shadow:0 0 0 2px var(--card-background-color,#fff),0 0 0 4px var(--goal-focus)}
     .dot.met{background:var(--goal-success);border-color:var(--goal-success);color:var(--goal-on-success)}
     .dot.missed{border-color:var(--goal-error);color:var(--goal-error)}
     .dot.progress{border-color:transparent}
@@ -176,17 +180,19 @@
     .mini-month{padding:0;min-width:0}
     .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;color:var(--goal-ink);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.1px;margin:0 0 var(--ha-space-2,8px);cursor:pointer}
     .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-1,4px) 2px;place-items:center}
-    .mini-dot{position:relative;width:7px;height:7px;border:1px solid var(--goal-track);border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box}
-    .mini-dot.met{background:var(--goal-success);border-color:var(--goal-success)}
-    .mini-dot.missed{border-color:var(--goal-error);background:transparent}
-    .mini-dot.progress{border:0}
-    .mini-dot.no-data,.mini-dot.no-goal{border-style:dashed}
+    .mini-dot{position:relative;width:12px;height:12px;border:0;background:transparent;padding:0;border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box;cursor:pointer}
+    .mini-dot::after{content:"";position:absolute;inset:2px;border:1px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
+    .mini-dot.met::after{background:var(--goal-success);border-color:var(--goal-success)}
+    .mini-dot.missed::after{border-color:var(--goal-error);background:transparent}
+    .mini-dot.progress::after{border:0}
+    .mini-dot.no-data::after,.mini-dot.no-goal::after{border-style:dashed}
     .mini-dot.future{opacity:.2}
+    .mini-dot[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--goal-focus)}
+    .mini-dot .progress-ring{inset:2px;width:8px;height:8px}
     .many-months{max-height:320px;overflow:auto;width:100%;padding:0;box-sizing:border-box}
     .many-months.year{max-height:none;overflow:visible}
     .many-months.year .month-collection{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px)}
     .many-months.year .mini-grid{gap:3px 1px}
-    .many-months.year .mini-dot{width:6px;height:6px}
     .drillback{display:flex;align-items:center;border:0;background:transparent;color:var(--goal-color);padding:0 0 var(--ha-space-3,12px);cursor:pointer;font:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-condensed,1.2)}
     .detail,.summary{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;text-align:center;color:var(--goal-muted)}
     .detail{margin-top:var(--ha-space-3,12px)}
@@ -194,18 +200,18 @@
     .summary{margin-top:var(--ha-space-3,12px)}
     .muted{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);text-align:center}
     .error{color:var(--goal-error);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-normal,1.6);text-align:center;padding:var(--ha-space-4,16px)}
-    @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{gap:3px 1px}.mini-dot{width:6px;height:6px}.strip .dot{width:28px;height:28px}}
+    @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{gap:3px 1px}.mini-dot{width:10px;height:10px}.mini-dot::after{inset:2px}.mini-dot .progress-ring{inset:2px;width:6px;height:6px}.strip .dot{width:28px;height:28px}}
   `;
 
   class DailyGoalsCard extends HTMLElement {
     constructor(){
       super();this.attachShadow({mode:'open'});
       this._config=null;this._hass=null;this._period=null;this._signature='';this._selected=null;this._selectedMonth=null;
-      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._lastDataRequest='';
+      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._lastDataRequest='';this._resizeObserver=null;this._lastHeight=0;
       this.shadowRoot.innerHTML=`<style>${css}</style><ha-card><div id="content"></div></ha-card>`;
       this.shadowRoot.addEventListener('click', (e)=>{
         const btn=e.target.closest('[data-day],[data-month]');if(!btn)return;
-        if(btn.dataset.day) this._selected=btn.dataset.day;
+        if(btn.dataset.day) this._selected=this._selected===btn.dataset.day?null:btn.dataset.day;
         if(btn.dataset.month){this._selectedMonth=btn.dataset.month==='all' ? null : btn.dataset.month;this._selected=null;}
         this._render();
       });
@@ -238,18 +244,29 @@
     }
     connectedCallback(){
       this._syncPeriod();
+      this._observeSize();
       this._timer=setInterval(()=>{
         this._syncPeriod();
         const now=new Date().getTime();
         if(now-this._clock>300000){this._clock=now;const today=dateParts(new Date(),this._tz());if(this._period?.start<=today&&this._period?.end>=today)this._load();else {this._mergeCurrentDay();this._render();}}
       },1100);
     }
-    disconnectedCallback(){clearInterval(this._timer);this._timer=null;this._fetchId++}
-    getCardSize(){return 5}
-    getGridOptions(){
-      const kind=this._days?.length?getLayout(this._days.map(d=>d.key)):'day';
-      const rows=kind==='day'?5:kind==='week'?4:kind==='month'?6:7;
-      return {columns:12,rows,min_columns:9,min_rows:4};
+    disconnectedCallback(){clearInterval(this._timer);this._timer=null;this._fetchId++;this._resizeObserver?.disconnect();this._resizeObserver=null}
+    getCardSize(){
+      const height=this.shadowRoot?.querySelector?.('ha-card')?.offsetHeight;
+      return height?Math.max(1,Math.ceil(height/50)):5;
+    }
+    getGridOptions(){return {columns:12,min_columns:9}}
+    _observeSize(){
+      if(this._resizeObserver||typeof ResizeObserver==='undefined')return;
+      const card=this.shadowRoot?.querySelector?.('ha-card');if(!card)return;
+      this._resizeObserver=new ResizeObserver((entries)=>{
+        const height=Math.round(entries[0]?.contentRect?.height||card.offsetHeight||0);
+        if(!height||height===this._lastHeight)return;
+        this._lastHeight=height;
+        this.dispatchEvent(new CustomEvent('card-updated',{bubbles:true,composed:true}));
+      });
+      this._resizeObserver.observe(card);
     }
     _tz(){return this._hass?.config?.time_zone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}
     _locale(){return this._hass?.locale?.language||navigator.language||'en'}
@@ -371,8 +388,9 @@
       if(!row)return '<span></span>';
       const pct=this._progress(row).toFixed(2);
       const ring=row.status==='progress'?this._progressRing(pct,mini):'';
-      if(mini)return `<span class="mini-dot ${row.status}" title="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}">${ring}</span>`;
       const active=this._selected===row.key;
+      const dayLabel=`${this._formatDate(row.key)}: ${this._label(row)}`;
+      if(mini)return `<button type="button" class="mini-dot ${row.status}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(dayLabel)}" title="${escapeHTML(dayLabel)}">${ring}</button>`;
       const sym=row.status==='no-goal'||row.status==='no-data'?'–':Number(row.key.slice(-2));
       return `<button type="button" class="dot ${row.status}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${ring}<span>${sym}</span></button>`;
     }
@@ -402,13 +420,14 @@
         const title=this._formatDate(month+'-01',true);
         const shortTitle=new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',month:'short'}).format(new Date(month+'-01T12:00:00Z'));
         return `<div class="mini-month"><button class="month-button" data-month="${month}" aria-label="Select ${escapeHTML(title)}">${escapeHTML(isYear?shortTitle:title)}</button>${this._monthGrid(year,m,true)}</div>`;
-      }).join('')}</div></div>`;
+      }).join('')}</div></div>${this._selectionDetail()}`;
     }
     _dayView(row){
       const unit=unitLabel(this._config,this._hass),pct=this._progress(row);
-      const path='M 100 8 A 92 42 0 0 1 192 50 A 92 42 0 0 1 100 92 A 92 42 0 0 1 8 50 A 92 42 0 0 1 100 8';
+      const path='M 100 8 H 150 A 42 42 0 0 1 192 50 A 42 42 0 0 1 150 92 H 50 A 42 42 0 0 1 8 50 A 42 42 0 0 1 50 8 H 100';
       const label=`${this._formatDate(row.key)}: ${this._label(row)}. ${this._format(row.value)} ${unit}. ${this._format(row.goal)} ${unit} goal.`;
-      return `<div class="fill"><div class="oval ${row.status}" role="img" aria-label="${escapeHTML(label)}"><svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="8" fill="none"/><path class="value" d="${path}" pathLength="100" stroke-width="8" fill="none" stroke-dasharray="${pct} 100"/></svg><div class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></div></div></div>`;
+      const active=this._selected===row.key;
+      return `<div class="fill"><button type="button" class="oval ${row.status}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(label)}"><svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="8" fill="none"/><path class="value" d="${path}" pathLength="100" stroke-width="8" fill="none" stroke-dasharray="${pct} 100"/></svg><span class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span></button>${this._selectionDetail()}</div>`;
     }
     _selectionDetail(){
       const row=this._days.find(d=>d.key===this._selected);
@@ -446,13 +465,16 @@
       else if(kind==='month')stage=this._monthView();
       else stage=this._miniMonths();
       const summary=!this._loading&&!this._error?`<div class="summary">${this._summaryText()}</div>`:'';
-      root.innerHTML=`<div class="header"><div class="name">${escapeHTML(title)}</div><div class="subtitle">Goal: ${escapeHTML(rule)}</div></div><div class="body">${stage}${summary}</div>`;
+      root.innerHTML=`<div class="header"><div class="header-icon" aria-hidden="true"><ha-state-icon></ha-state-icon></div><div class="header-info"><div class="name">${escapeHTML(title)}</div><div class="subtitle">Goal: ${escapeHTML(rule)}</div></div></div><div class="body">${stage}${summary}</div>`;
+      const stateIcon=root.querySelector('ha-state-icon');
+      if(stateIcon){stateIcon.hass=hass;stateIcon.stateObj=hass.states?.[c.entity];if(c.icon)stateIcon.icon=c.icon;}
     }
   }
 
   const FORM_SCHEMA=[
     {name:'entity',required:true,selector:{entity:{domain:['sensor','number','input_number']}}},
     {name:'title',selector:{text:{}}},
+    {name:'icon',selector:{icon:{}}},
     {name:'goal',selector:{number:{mode:'box',step:'any'}}},
     {name:'goal_entity',selector:{entity:{domain:['sensor','number','input_number']}}},
     {name:'direction',selector:{select:{options:[{value:'min',label:'At least (minimum)'},{value:'max',label:'At most (maximum)'}]}}},
@@ -460,7 +482,7 @@
     {name:'unit',selector:{text:{}}},
     {name:'collection_key',selector:{text:{}}},
   ];
-  const FORM_LABELS={entity:'Measurement entity',title:'Card title (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
+  const FORM_LABELS={entity:'Measurement entity',title:'Card title (optional)',icon:'Icon (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
   class DailyGoalsCardEditor extends HTMLElement {
     constructor(){super();this.attachShadow({mode:'open'});this._form=document.createElement('ha-form');this._form.schema=FORM_SCHEMA;this._form.computeLabel=(schema)=>FORM_LABELS[schema.name]||schema.name;
       this._form.addEventListener('value-changed',e=>{if(!this._config)return;const newConfig={...this._config,...e.detail.value,type:'custom:daily-goals-card'};this._config=newConfig;this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:newConfig},bubbles:true,composed:true}));});this.shadowRoot.appendChild(this._form)}

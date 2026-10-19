@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../src/daily-goals-card.js'),'utf8');
 const elements=new Map();
-class HTMLElementStub {attachShadow(){const root={innerHTML:'',addEventListener(){}};this.shadowRoot=root;return root}}
+class HTMLElementStub {attachShadow(){const root={innerHTML:'',listeners:{},addEventListener(name,handler){this.listeners[name]=handler},getElementById(){return null}};this.shadowRoot=root;return root}}
 const globals={Date,Math,Intl,Number,Set,Map,Array,console,HTMLElement:HTMLElementStub,window:{__DAILY_GOALS_TEST__:{}},customElements:{get(n){return elements.get(n)},define(n,cls){elements.set(n,cls)}},document:{createElement(){return {addEventListener(){},attachShadow(){return {appendChild(){}}}}}}};
 vm.runInNewContext(source,globals);
 const L=globals.window.__DAILY_GOALS_TEST__;
@@ -77,8 +77,28 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  card._hass={locale:{language:'en'},states:{'sensor.steps':{attributes:{unit_of_measurement:'steps'}}}};
  const day=card._dayView({key:'2026-10-19',value:25,goal:100,status:'progress'});
  assert.match(day,/viewBox="0 0 200 100"/);
- assert.match(day,/d="M 100 8 A 92 42/);
+ assert.match(day,/d="M 100 8 H 150 A 42 42/);
  assert.match(day,/stroke-dasharray="25 100"/);
+});
+test('every day view exposes toggleable day selection',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ card._config={entity:'sensor.steps',goal:100};
+ card._hass={locale:{language:'en'},states:{'sensor.steps':{attributes:{unit_of_measurement:'steps'}}}};
+ const row={key:'2026-10-19',value:25,goal:100,status:'progress'};
+ card._days=[row];
+ assert.match(card._dayView(row),/class="oval progress" data-day="2026-10-19" aria-pressed="false"/);
+ assert.match(card._renderDot(row,true),/class="mini-dot progress" data-day="2026-10-19" aria-pressed="false"/);
+ card._selected=row.key;
+ assert.match(card._dayView(row),/aria-pressed="true"/);
+ assert.match(card._dayView(row),/class="detail"/);
+ assert.match(card._renderDot(row,true),/aria-pressed="true"/);
+ const click={target:{closest:()=>({dataset:{day:row.key}})}};
+ card.shadowRoot.listeners.click(click);
+ assert.equal(card._selected,null);
+ card.shadowRoot.listeners.click(click);
+ assert.equal(card._selected,row.key);
+ assert.equal(Object.hasOwn(card.getGridOptions(),'rows'),false);
 });
 test('goal summary is present for single-day and multi-day ranges',()=>{
  const Card=elements.get('daily-goals-card');
