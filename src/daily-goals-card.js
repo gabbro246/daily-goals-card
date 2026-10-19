@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.2.4';
+  const VERSION = '0.3.0';
   const DAY_MS = 86400000;
   const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
   const numeric = (value) => {
@@ -40,7 +40,10 @@
     return new Date(value);
   };
   const daysInMonth = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const weekOffset = (year, month, day=1) => (new Date(Date.UTC(year,month-1,day)).getUTCDay()+6)%7;
+  const weekOffset = (year, month, day=1, sunday=false) => (new Date(Date.UTC(year,month-1,day)).getUTCDay()+(sunday?0:6))%7;
+  const weekdayLabels = (locale,sunday=false) => Array.from({length:7},(_,i)=>
+    new Intl.DateTimeFormat(locale,{timeZone:'UTC',weekday:'short'}).format(new Date(Date.UTC(2026,0,(sunday?4:5)+i)))
+  );
   const makeKeys = (start,end) => {
     const count = dayDiff(start,end);
     if (count<0 || count>750) throw new Error('Select a range of no more than 750 days.');
@@ -52,8 +55,15 @@
       .filter(id=>typeof id==='string'&&id)
   )];
   const shouldShowLegend = (config) => config?.show_legend === true || (config?.show_legend === undefined && config?.legend === 'show');
+  const weekStartsSunday = (config) => config?.start_week_on_sunday === true;
   const FINISHED_STYLES = new Set(['filled','outline','symbols']);
   const finishedStyle = (config) => FINISHED_STYLES.has(config?.finished_style) ? config.finished_style : 'filled';
+  const markerStyle = (config,status) => {
+    const name=status==='met'?'success_style':status==='missed'?'failure_style':['no-data','no-goal'].includes(status)?'no_data_style':null;
+    if(name&&FINISHED_STYLES.has(config?.[name]))return config[name];
+    if(['met','missed'].includes(status))return finishedStyle(config);
+    return ['no-data','no-goal'].includes(status)?'outline':null;
+  };
   const unitLabel = (config,hass) => config.unit || hass?.states?.[measurementEntities(config)[0]]?.attributes?.unit_of_measurement || '';
   const stateValue = (state) => numeric(state?.state);
   const dailyFromStats = (rows, aggregation, tz) => {
@@ -147,6 +157,7 @@
       --goal-ink:var(--ha-color-text-primary,var(--primary-text-color,#212121));
       --goal-on-success:var(--ha-color-on-success-loud,var(--text-primary-color,#fff));
       --goal-on-error:var(--ha-color-on-danger-loud,var(--text-primary-color,#fff));
+      --goal-on-unavailable:var(--card-background-color,#fff);
       --goal-focus:var(--ha-color-focus,var(--primary-color,#03a9f4));
       --goal-icon-background:var(--ha-color-fill-primary-quiet-resting,rgba(3,169,244,.12));
     }
@@ -172,29 +183,31 @@
     .oval-text{display:flex;align-items:baseline;position:relative;z-index:1;gap:var(--ha-space-1,4px)}
     .oval-text .measurement{font-size:var(--ha-font-size-3xl,28px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:0}
     .oval-text .unit{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);color:var(--goal-muted)}
-    .strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;place-items:center;max-width:500px;margin:0 auto;width:100%}
-    .cell{display:flex;flex-direction:column;align-items:center;gap:var(--ha-space-2,8px);min-width:0}
-    .cell > span,.weekday,.month-button{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted)}
+    .strip{display:grid;grid-template-columns:repeat(var(--day-columns,7),minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;place-items:center;max-width:500px;margin:0 auto;width:100%}
+    .weekday,.month-button{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted)}
     .dot{border:4px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
     .dot > span{position:relative;z-index:1}
     .oval:focus-visible,.dot:focus-visible,.mini-dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
     .dot[aria-pressed=true]{box-shadow:0 0 0 2px var(--card-background-color,#fff),0 0 0 4px var(--goal-focus)}
     .dot.met{background:var(--goal-success);border-color:var(--goal-success);color:var(--goal-on-success)}
     .dot.missed{background:var(--goal-error);border-color:var(--goal-error);color:var(--goal-on-error)}
-    .dot.met.finished-outline{background:transparent;border-color:var(--goal-success);color:var(--goal-success)}
-    .dot.missed.finished-outline{background:transparent;border-color:var(--goal-error);color:var(--goal-error)}
-    .dot.finished-symbols{background:transparent;border-color:transparent}
-    .dot.met.finished-symbols{color:var(--goal-success)}
-    .dot.missed.finished-symbols{color:var(--goal-error)}
-    .dot.finished-symbols > span{font-size:18px;font-weight:var(--ha-font-weight-bold,700)}
-    .dot.progress{border-color:transparent}
-    .dot.no-data,.dot.no-goal{border-color:var(--goal-unavailable);border-style:dashed;color:var(--goal-unavailable)}
+    .dot.met.marker-outline{background:transparent;border-color:var(--goal-success);color:var(--goal-success)}
+    .dot.missed.marker-outline{background:transparent;border-color:var(--goal-error);color:var(--goal-error)}
+    .dot.marker-symbols{background:transparent;border-color:transparent}
+    .dot.met.marker-symbols{color:var(--goal-success)}
+    .dot.missed.marker-symbols{color:var(--goal-error)}
+    .dot.marker-symbols > span{font-size:18px;font-weight:var(--ha-font-weight-bold,700)}
+    .dot.progress,.dot.multi-current{border-width:0}
+    .dot.no-data,.dot.no-goal{border:0;color:var(--goal-unavailable)}
+    .dot.no-data.marker-filled,.dot.no-goal.marker-filled{background:var(--goal-unavailable);border:4px solid var(--goal-unavailable);color:var(--goal-on-unavailable)}
+    .dot.no-data.marker-symbols,.dot.no-goal.marker-symbols{background:transparent;border:0;color:var(--goal-unavailable)}
     .dot.future{border-color:var(--goal-unavailable);color:var(--goal-unavailable)}
     .dot.multi-current{background:transparent;border-color:transparent;color:var(--goal-muted)}
-    .progress-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+    .progress-ring,.unavailable-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
     .progress-ring .track{fill:none;stroke:var(--goal-track)}
     .progress-ring .value{fill:none;stroke:var(--goal-color);stroke-linecap:round}
     .progress-ring .series-value,.progress-ring .series-cap{fill:none}
+    .unavailable-ring circle{fill:none;stroke:var(--goal-unavailable);stroke-linecap:round}
     .month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;align-items:center;justify-items:center;max-width:430px;margin:0 auto;width:100%}
     .month-collection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px);width:100%}
     .mini-month{padding:0;min-width:0}
@@ -204,17 +217,19 @@
     .mini-dot::after{content:"";position:absolute;inset:0;border:2px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
     .mini-dot.met::after{background:var(--goal-success);border-color:var(--goal-success)}
     .mini-dot.missed::after{border-color:var(--goal-error);background:var(--goal-error)}
-    .mini-dot.met.finished-outline::after{background:transparent;border-color:var(--goal-success)}
-    .mini-dot.missed.finished-outline::after{background:transparent;border-color:var(--goal-error)}
-    .mini-dot.finished-symbols::after{inset:0;border:0;background:transparent;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
-    .mini-dot.met.finished-symbols::after{content:"\\2713";color:var(--goal-success)}
-    .mini-dot.missed.finished-symbols::after{content:"\\00d7";color:var(--goal-error)}
+    .mini-dot.met.marker-outline::after{background:transparent;border-color:var(--goal-success)}
+    .mini-dot.missed.marker-outline::after{background:transparent;border-color:var(--goal-error)}
+    .mini-dot.marker-symbols::after{inset:0;border:0;background:transparent;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
+    .mini-dot.met.marker-symbols::after{content:"\\2713";color:var(--goal-success)}
+    .mini-dot.missed.marker-symbols::after{content:"\\00d7";color:var(--goal-error)}
     .mini-dot.progress::after{border:0}
-    .mini-dot.no-data::after,.mini-dot.no-goal::after{border-color:var(--goal-unavailable);border-style:dashed}
+    .mini-dot.no-data::after,.mini-dot.no-goal::after{border:0}
+    .mini-dot.no-data.marker-filled::after,.mini-dot.no-goal.marker-filled::after{background:var(--goal-unavailable);border-color:var(--goal-unavailable);border-style:solid}
+    .mini-dot.no-data.marker-symbols::after,.mini-dot.no-goal.marker-symbols::after{content:"\\2013";color:var(--goal-unavailable)}
     .mini-dot.future::after{border-color:var(--goal-unavailable)}
     .mini-dot.multi-current::after{background:transparent;border:0}
     .mini-dot[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--goal-focus)}
-    .mini-dot .progress-ring{inset:0;width:12px;height:12px}
+    .mini-dot .progress-ring,.mini-dot .unavailable-ring{inset:0;width:12px;height:12px}
     .many-months{max-height:320px;overflow:auto;width:100%;padding:0;box-sizing:border-box}
     .many-months.unscrolled{max-height:none;overflow:visible}
     .many-months .mini-grid{gap:3px 1px}
@@ -262,7 +277,7 @@
     static getConfigElement(){return document.createElement('daily-goals-card-editor')}
     static getStubConfig(hass,entities=[]){
       const pick=entities.find(e=>e.startsWith('sensor.'))||'sensor.daily_steps';
-      return {type:'custom:daily-goals-card',entities:[pick],goal:6000,direction:'min',aggregation:'max',finished_style:'filled',show_legend:false};
+      return {type:'custom:daily-goals-card',entities:[pick],goal:6000,direction:'min',aggregation:'max',success_style:'filled',failure_style:'filled',no_data_style:'outline',start_week_on_sunday:false,show_legend:false};
     }
     setConfig(config){
       if(config?.entity!==undefined&&typeof config.entity!=='string')throw new Error('entity must be an entity ID.');
@@ -274,6 +289,8 @@
       if(config.direction && !['min','max'].includes(config.direction))throw new Error('direction must be min or max.');
       if(config.aggregation && !VALID_AGG.has(config.aggregation))throw new Error('aggregation must be change, max, min, mean, or state.');
       if(config.finished_style && !FINISHED_STYLES.has(config.finished_style))throw new Error('finished_style must be filled, outline, or symbols.');
+      for(const name of ['success_style','failure_style','no_data_style'])if(config[name]&&!FINISHED_STYLES.has(config[name]))throw new Error(`${name} must be filled, outline, or symbols.`);
+      if(config.start_week_on_sunday!==undefined && typeof config.start_week_on_sunday!=='boolean')throw new Error('start_week_on_sunday must be true or false.');
       if(config.show_legend!==undefined && typeof config.show_legend!=='boolean')throw new Error('show_legend must be true or false.');
       const key=JSON.stringify(config);
       if(key!==JSON.stringify(this._config)){this._config={...config};this._signature='';this._lastDataRequest='';this._selected=null;this._selectedMonth=null;this._hiddenEntities.clear();this._syncPeriod(true)}
@@ -504,22 +521,28 @@
       const size=mini?12:32,center=size/2,radius=mini?5:14,stroke=mini?2:4;
       return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" cx="${center}" cy="${center}" r="${radius}" stroke-width="${stroke}"/><circle class="value" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${pct} 100" transform="rotate(-90 ${center} ${center})"/></svg>`;
     }
+    _unavailableRing(mini=false){
+      const size=mini?12:32,center=size/2,radius=mini?5:14,stroke=mini?2:4,pathLength=mini?15:21;
+      return `<svg class="unavailable-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${center}" cy="${center}" r="${radius}" pathLength="${pathLength}" stroke-width="${stroke}" stroke-dasharray="1 2" transform="rotate(-90 ${center} ${center})"/></svg>`;
+    }
     _renderDot(row,mini=false){
       if(!row)return '<span></span>';
       const pct=this._progress(row).toFixed(2),multiCurrent=this._isMultiCurrent(row);
-      const ring=multiCurrent?this._stackedRing(row,mini):(row.status==='progress'?this._progressRing(pct,mini):'');
-      const isFinished=row.key<dateParts(new Date(),this._tz())&&['met','missed'].includes(row.status);
-      const active=this._selected===row.key,currentClass=multiCurrent?' multi-current':'',finishedClass=isFinished?` finished-${finishedStyle(this._config)}`:'';
+      const style=markerStyle(this._config,row.status);
+      const unavailable=['no-data','no-goal'].includes(row.status)&&style==='outline';
+      const ring=multiCurrent?this._stackedRing(row,mini):(row.status==='progress'?this._progressRing(pct,mini):(unavailable?this._unavailableRing(mini):''));
+      const active=this._selected===row.key,currentClass=multiCurrent?' multi-current':'',styleClass=style?` marker-${style}`:'';
       const dayLabel=`${this._formatDate(row.key)}: ${this._label(row)}`;
-      if(mini)return `<button type="button" class="mini-dot ${row.status}${finishedClass}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(dayLabel)}" title="${escapeHTML(dayLabel)}">${ring}</button>`;
-      const sym=isFinished&&finishedStyle(this._config)==='symbols'?(row.status==='met'?'&#10003;':'&times;'):(row.status==='no-goal'||row.status==='no-data'?'–':Number(row.key.slice(-2)));
-      return `<button type="button" class="dot ${row.status}${finishedClass}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${ring}<span>${sym}</span></button>`;
+      if(mini)return `<button type="button" class="mini-dot ${row.status}${styleClass}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(dayLabel)}" title="${escapeHTML(dayLabel)}">${ring}</button>`;
+      const symbols={met:'&#10003;',missed:'&times;','no-data':'–','no-goal':'–'};
+      const sym=(style==='symbols'||row.status==='no-goal')&&symbols[row.status]?symbols[row.status]:Number(row.key.slice(-2));
+      return `<button type="button" class="dot ${row.status}${styleClass}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${ring}<span>${sym}</span></button>`;
     }
     _monthGrid(year,month,small=false){
-      const limit=daysInMonth(year,month),prefix=weekOffset(year,month),map=new Map(this._days.map(d=>[d.key,d]));
+      const sunday=weekStartsSunday(this._config),limit=daysInMonth(year,month),prefix=weekOffset(year,month,1,sunday),map=new Map(this._days.map(d=>[d.key,d]));
       let cells='';
       if(!small){
-        const labels=Array.from({length:7},(_,i)=>new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',weekday:'short'}).format(new Date(Date.UTC(2026,0,5+i))));
+        const labels=weekdayLabels(this._locale(),sunday);
         cells+=labels.map(s=>`<span class="weekday">${escapeHTML(s)}</span>`).join('');
       }
       for(let i=0;i<prefix;i++)cells+='<span></span>';
@@ -558,7 +581,9 @@
       return `<div class="detail"><strong>${this._format(row.value)} ${escapeHTML(unit)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._percentageText(row))}</div>`;
     }
     _weekView(){
-      return `<div class="fill"><div class="strip">${this._days.map(row=>`<div class="cell"><span>${escapeHTML(this._weekday(row.key))}</span>${this._renderDot(row)}</div>`).join('')}</div>${this._selectionDetail()}</div>`;
+      const columns=Math.min(7,this._days.length);
+      const headings=this._days.slice(0,columns).map(row=>`<span class="weekday">${escapeHTML(this._weekday(row.key))}</span>`).join('');
+      return `<div class="fill"><div class="strip" style="--day-columns:${columns}">${headings}${this._days.map(row=>this._renderDot(row)).join('')}</div>${this._selectionDetail()}</div>`;
     }
     _monthView(){
       const [year,month]=this._days[0].key.split('-').map(Number);
@@ -567,8 +592,8 @@
     _rollingMonthView(){
       const first=this._days[0]?.key;
       if(!first)return '';
-      const labels=Array.from({length:7},(_,i)=>new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',weekday:'short'}).format(new Date(Date.UTC(2026,0,5+i))));
-      const prefix=(new Date(`${first}T12:00:00Z`).getUTCDay()+6)%7;
+      const sunday=weekStartsSunday(this._config),labels=weekdayLabels(this._locale(),sunday);
+      const prefix=(new Date(`${first}T12:00:00Z`).getUTCDay()+(sunday?0:6))%7;
       const cells=labels.map(label=>`<span class="weekday">${escapeHTML(label)}</span>`).join('')+'<span></span>'.repeat(prefix)+this._days.map(row=>this._renderDot(row)).join('');
       return `<div class="fill"><div class="month-grid">${cells}</div>${this._selectionDetail()}</div>`;
     }
@@ -634,16 +659,24 @@
     {name:'goal_entity',selector:{entity:{domain:['sensor','number','input_number']}}},
     {name:'direction',selector:{select:{options:[{value:'min',label:'At least (minimum)'},{value:'max',label:'At most (maximum)'}]}}},
     {name:'aggregation',selector:{select:{mode:'box',box_max_columns:1,options:AGGREGATION_OPTIONS}}},
-    {name:'finished_style',selector:{select:{options:[{value:'filled',label:'Filled'},{value:'outline',label:'Outlined'},{value:'symbols',label:'Symbols'}]}}},
     {name:'show_legend',selector:{boolean:{}}},
+    {name:'start_week_on_sunday',selector:{boolean:{}}},
     {name:'unit',selector:{text:{}}},
     {name:'collection_key',selector:{text:{}}},
   ];
-  const FORM_LABELS={entities:'Measurement entities',title:'Card title (optional)',icon:'Icon (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',finished_style:'Completed day markers',show_legend:'Show measurement legend',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
+  const FORM_LABELS={entities:'Measurement entities',title:'Card title (optional)',icon:'Icon (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',start_week_on_sunday:'Start week on Sunday',show_legend:'Show measurement legend',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
+  const STYLE_ROWS=[
+    {name:'success_style',label:'Successful days',status:'met'},
+    {name:'failure_style',label:'Unsuccessful days',status:'missed'},
+    {name:'no_data_style',label:'Days without data',status:'no-data'},
+  ];
   class DailyGoalsCardEditor extends HTMLElement {
     constructor(){super();this.attachShadow({mode:'open'});this._form=document.createElement('ha-form');this._form.schema=FORM_SCHEMA;this._form.computeLabel=(schema)=>FORM_LABELS[schema.name]||schema.name;
-      this._form.addEventListener('value-changed',e=>{if(!this._config)return;const values=e.detail.value,newConfig={...this._config,...values,type:'custom:daily-goals-card'};if(Array.isArray(values.entities))delete newConfig.entity;delete newConfig.legend;this._config=newConfig;this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:newConfig},bubbles:true,composed:true}));});this.shadowRoot.appendChild(this._form)}
-    setConfig(config){this._config={...config};const data={...config,entities:measurementEntities(config),finished_style:finishedStyle(config),show_legend:config.show_legend??config.legend==='show'};delete data.entity;delete data.legend;this._form.data=data;}
+      this._form.addEventListener('value-changed',e=>{if(!this._config)return;const values=e.detail.value,newConfig={...this._config,...values,type:'custom:daily-goals-card'};if(Array.isArray(values.entities))delete newConfig.entity;delete newConfig.legend;this._config=newConfig;this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:newConfig},bubbles:true,composed:true}));});this.shadowRoot.appendChild(this._form);
+      this._styles=document.createElement('fieldset');this._styles.className='style-grid';this._styles.addEventListener('change',e=>{if(!this._config||e.target.type!=='radio'||!e.target.checked)return;const newConfig={...this._config,[e.target.name]:e.target.value,type:'custom:daily-goals-card'};this._config=newConfig;this._renderStyles();this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:newConfig},bubbles:true,composed:true}));});this.shadowRoot.appendChild(this._styles);
+      const style=document.createElement('style');style.textContent=`.style-grid{border:0;margin:20px 0 0;padding:0;width:100%;box-sizing:border-box;color:var(--primary-text-color);display:grid;grid-template-columns:minmax(120px,1fr) repeat(3,minmax(64px,.55fr));align-items:center;gap:0}.style-grid legend{grid-column:1/-1;font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);padding:0 0 12px}.style-grid .heading{font-size:var(--ha-font-size-s,12px);color:var(--secondary-text-color);text-align:center;padding:0 4px 8px}.style-grid .row-label{font-size:var(--ha-font-size-m,14px);padding:10px 8px 10px 0}.style-grid label{display:grid;place-items:center;min-height:40px;cursor:pointer}.style-grid input{width:18px;height:18px;margin:0;accent-color:var(--primary-color)}@media(max-width:360px){.style-grid{grid-template-columns:minmax(105px,1fr) repeat(3,minmax(54px,.5fr))}.style-grid .heading{font-size:11px}}`;this.shadowRoot.appendChild(style)}
+    _renderStyles(){if(!this._styles)return;const headings=['Filled','Outlined','Symbols'];const rows=STYLE_ROWS.map(row=>{const selected=markerStyle(this._config,row.status);return `<span class="row-label">${row.label}</span>${['filled','outline','symbols'].map((value,index)=>`<label title="${row.label}: ${headings[index]}"><input type="radio" name="${row.name}" value="${value}" aria-label="${row.label}: ${headings[index]}"${selected===value?' checked':''}></label>`).join('')}`}).join('');this._styles.innerHTML=`<legend>Day marker styles</legend><span></span>${headings.map(label=>`<span class="heading">${label}</span>`).join('')}${rows}`;}
+    setConfig(config){this._config={...config};const data={...config,entities:measurementEntities(config),show_legend:config.show_legend??config.legend==='show'};delete data.entity;delete data.legend;delete data.finished_style;delete data.success_style;delete data.failure_style;delete data.no_data_style;this._form.data=data;this._renderStyles();}
     set hass(hass){this._form.hass=hass;}
   }
   if(!customElements.get('daily-goals-card'))customElements.define('daily-goals-card',DailyGoalsCard);
@@ -652,5 +685,5 @@
   if(!window.customCards.some(c=>c.type==='daily-goals-card'))window.customCards.push({type:'daily-goals-card',name:'Daily Goals',description:'Daily goals synced with the Energy date picker',preview:true});
   console.info(`%c DAILY GOALS CARD %c v${VERSION} `,'background:#03a9f4;color:white;font-weight:bold','background:#eee;color:#222');
   // Exposed only for programmatic tests; does not affect Home Assistant UI.
-  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,measurementEntities,shouldShowLegend,finishedStyle,dailyFromStats,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,AGGREGATION_OPTIONS};
+  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,weekOffset,weekdayLabels,measurementEntities,shouldShowLegend,weekStartsSunday,finishedStyle,markerStyle,dailyFromStats,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,AGGREGATION_OPTIONS,STYLE_ROWS};
 })();

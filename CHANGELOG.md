@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0
+- Added separate marker styles for successful, unsuccessful, and no-data days.
+- Added a compact grid for choosing day marker styles in the card editor.
+- Added an option to start calendars on Sunday.
+- Improved current-day sizing, short-range weekday labels, and no-data outlines.
+- Empty days now show only a gray dash when their marker style is Symbols.
+
 ## 0.2.4
 - Increased and standardized progress border thickness across all views.
 

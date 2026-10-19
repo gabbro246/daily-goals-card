@@ -79,7 +79,21 @@ The card adds their daily values together. For today, each entity has its own co
 
 Use the **Show measurement legend** switch in the card editor, or set `show_legend: true` or `show_legend: false` in YAML. New cards default to hiding the legend.
 
-Use **Completed day markers** to show past results as **Filled**, **Outlined**, or **Symbols**. The YAML values are `filled`, `outline`, and `symbols`; new cards default to `filled`.
+Use the **Day marker styles** grid to choose **Filled**, **Outlined**, or **Symbols** separately for successful days, unsuccessful days, and days without data. For example, successful days can be filled while unsuccessful days use symbols.
+
+The no-data style also applies when a day's goal is unavailable. Choose Symbols for a plain gray dash without a circle.
+
+The matching YAML options are `success_style`, `failure_style`, and `no_data_style`. Each accepts `filled`, `outline`, or `symbols`:
+
+```yaml
+  success_style: filled
+  failure_style: symbols
+  no_data_style: outline
+```
+
+Existing cards that use `finished_style` continue to work as before for successful and unsuccessful days.
+
+Enable **Start week on Sunday** in the card editor, or set `start_week_on_sunday: true` in YAML. Calendars start on Monday by default.
 
 ### Use a changing goal
 

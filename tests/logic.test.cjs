@@ -26,6 +26,13 @@ test('day range and leap-year months',()=>{
  assert.equal(L.daysInMonth(2024,2),29);
  assert.equal(L.makeKeys('2026-09-22','2026-09-24').join(','),'2026-09-22,2026-09-23,2026-09-24');
  assert.throws(()=>L.makeKeys('2024-01-01','2026-12-31'),/no more than 750/);
+ assert.equal(L.weekOffset(2025,1),2);
+ assert.equal(L.weekOffset(2025,1,1,true),3);
+ assert.equal(L.weekdayLabels('en',false)[0],'Mon');
+ assert.equal(L.weekdayLabels('en',true)[0],'Sun');
+ assert.equal(L.weekStartsSunday({}),false);
+ assert.equal(L.weekStartsSunday({start_week_on_sunday:true}),true);
+ assert.match(source,/name:'start_week_on_sunday',selector:\{boolean:\{\}\}/);
 });
 test('time zone boundaries handle daylight saving',()=>{
  assert.equal(L.zonedMidnight('2026-03-29','Europe/Vienna').toISOString(),'2026-03-28T23:00:00.000Z');
@@ -92,27 +99,61 @@ test('legend visibility is controlled by one boolean setting',()=>{
  assert.equal(L.shouldShowLegend({entities:['sensor.one','sensor.two'],show_legend:false}),false);
  assert.match(source,/name:'show_legend',selector:\{boolean:\{\}\}/);
 });
-test('completed day markers support filled, outlined, and symbol styles',()=>{
+test('day states have independent filled, outlined, and symbol styles',()=>{
  const Card=elements.get('daily-goals-card');
- assert.equal(Card.getStubConfig({},['sensor.one']).finished_style,'filled');
+ const stub=Card.getStubConfig({},['sensor.one']);
+ assert.equal(stub.success_style,'filled');
+ assert.equal(stub.failure_style,'filled');
+ assert.equal(stub.no_data_style,'outline');
+ assert.equal(stub.start_week_on_sunday,false);
  assert.equal(L.finishedStyle({}),'filled');
  assert.equal(L.finishedStyle({finished_style:'outline'}),'outline');
  assert.equal(L.finishedStyle({finished_style:'symbols'}),'symbols');
  assert.equal(L.finishedStyle({finished_style:'invalid'}),'filled');
- assert.match(source,/name:'finished_style',selector:\{select:\{options:\[\{value:'filled',label:'Filled'\},\{value:'outline',label:'Outlined'\},\{value:'symbols',label:'Symbols'\}\]\}\}/);
+ assert.equal(L.markerStyle({},'met'),'filled');
+ assert.equal(L.markerStyle({},'missed'),'filled');
+ assert.equal(L.markerStyle({},'no-data'),'outline');
+ assert.equal(L.markerStyle({finished_style:'outline'},'met'),'outline');
+ assert.equal(L.markerStyle({finished_style:'symbols'},'missed'),'symbols');
+ assert.equal(L.markerStyle({finished_style:'symbols',success_style:'filled'},'met'),'filled');
+ assert.equal(L.markerStyle({success_style:'filled',failure_style:'symbols',no_data_style:'symbols'},'missed'),'symbols');
+ assert.equal(L.markerStyle({no_data_style:'filled'},'no-data'),'filled');
+ assert.equal(L.markerStyle({no_data_style:'filled'},'no-goal'),'filled');
+ assert.equal(L.STYLE_ROWS.length,3);
+ assert.match(source,/className='style-grid'/);
+ assert.match(source,/type="radio" name="\$\{row\.name\}"/);
  const card=new Card();
  card._config={entity:'sensor.steps',goal:100};
  card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
  const met={key:'2020-01-01',value:100,goal:100,status:'met'};
  const missed={key:'2020-01-02',value:20,goal:100,status:'missed'};
- assert.match(card._renderDot(met),/class="dot met finished-filled"/);
- card._config.finished_style='outline';
- assert.match(card._renderDot(met),/class="dot met finished-outline"/);
- assert.match(card._renderDot(missed,true),/class="mini-dot missed finished-outline"/);
- card._config.finished_style='symbols';
- assert.match(card._renderDot(met),/<span>&#10003;<\/span>/);
+ const noData={key:'2020-01-03',value:null,goal:100,status:'no-data'};
+ const noGoal={key:'2020-01-04',value:20,goal:null,status:'no-goal'};
+ assert.match(card._renderDot(met),/class="dot met marker-filled"/);
+ card._config.success_style='outline';
+ assert.match(card._renderDot(met),/class="dot met marker-outline"/);
+ card._config.failure_style='symbols';
+ assert.match(card._renderDot(missed,true),/class="mini-dot missed marker-symbols"/);
  assert.match(card._renderDot(missed),/<span>&times;<\/span>/);
- assert.match(card._renderDot(met,true),/class="mini-dot met finished-symbols"/);
+ card._config.success_style='symbols';
+ assert.match(card._renderDot(met),/<span>&#10003;<\/span>/);
+ assert.match(card._renderDot(met,true),/class="mini-dot met marker-symbols"/);
+ card._config.no_data_style='outline';
+ assert.match(card._renderDot(noData),/class="unavailable-ring"/);
+ assert.match(card._renderDot(noData),/<span>3<\/span>/);
+ card._config.no_data_style='symbols';
+ for(const row of [noData,noGoal,{...noGoal,value:null}]){
+  const symbol=card._renderDot(row),miniSymbol=card._renderDot(row,true);
+  assert.match(symbol,/marker-symbols"/);
+  assert.match(symbol,/<span>–<\/span>/);
+  assert.doesNotMatch(symbol,/unavailable-ring/);
+  assert.match(miniSymbol,/marker-symbols"/);
+  assert.doesNotMatch(miniSymbol,/unavailable-ring/);
+ }
+ card._config.no_data_style='outline';
+ assert.match(card._renderDot(noGoal),/unavailable-ring/);
+ assert.throws(()=>card.setConfig({entity:'sensor.steps',goal:100,failure_style:'invalid'}),/failure_style/);
+ assert.throws(()=>card.setConfig({entity:'sensor.steps',goal:100,start_week_on_sunday:'yes'}),/start_week_on_sunday/);
 });
 
 test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
@@ -132,7 +173,7 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
 test('status colors, sizes, and outlines are consistent within each visual scale',()=>{
  assert.match(source,/\.series-value\{fill:none;stroke-linecap:butt/);
  assert.match(source,/\.series-cap\{fill:none;stroke-linecap:round/);
- assert.match(source,/\.cell > span,.weekday,.month-button\{font-size:var\(--ha-font-size-s,12px\);font-weight:var\(--ha-font-weight-normal,400\)[^\n]+color:var\(--goal-muted\)\}/);
+ assert.match(source,/\.weekday,.month-button\{font-size:var\(--ha-font-size-s,12px\);font-weight:var\(--ha-font-weight-normal,400\)[^\n]+color:var\(--goal-muted\)\}/);
  assert.match(source,/--goal-success:var\([^\n]+#43a047/);
  assert.match(source,/--goal-error:var\([^\n]+#db4437/);
  assert.doesNotMatch(source,/goal-small-(?:met|missed)/);
@@ -141,7 +182,8 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.match(source,/\.mini-dot::after\{[^\n]+border:2px solid var\(--goal-track\)/);
  assert.match(source,/\.mini-dot\.met::after\{background:var\(--goal-success\);border-color:var\(--goal-success\)/);
  assert.match(source,/\.mini-dot\.missed::after\{border-color:var\(--goal-error\);background:var\(--goal-error\)/);
- assert.match(source,/\.dot\.no-data,.dot\.no-goal\{border-color:var\(--goal-unavailable\);border-style:dashed/);
+ assert.match(source,/\.dot\.progress,.dot\.multi-current\{border-width:0\}/);
+ assert.match(source,/\.unavailable-ring circle\{fill:none;stroke:var\(--goal-unavailable\);stroke-linecap:round\}/);
  assert.match(source,/\.dot\.future\{border-color:var\(--goal-unavailable\);color:var\(--goal-unavailable\)\}/);
  assert.match(source,/\.mini-dot\.future::after\{border-color:var\(--goal-unavailable\)\}/);
  assert.doesNotMatch(source,/\.dot\.future\{opacity:/);
@@ -215,6 +257,10 @@ test('rolling month and progress rings use fixed marker scales',()=>{
  const today=L.dateParts(new Date(),'UTC');
  card._config={entity:'sensor.steps',goal:100};
  card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ const unavailable=card._unavailableRing();
+ assert.match(unavailable,/viewBox="0 0 32 32".*r="14".*pathLength="21".*stroke-width="4".*stroke-dasharray="1 2"/);
+ const miniUnavailable=card._unavailableRing(true);
+ assert.match(miniUnavailable,/viewBox="0 0 12 12".*r="5".*pathLength="15".*stroke-width="2".*stroke-dasharray="1 2"/);
  card._days=L.makeKeys(L.keyPlus(today,-30),today).map(key=>({key,value:25,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.steps',value:25}]}));
  const rolling=card._rollingMonthView();
  assert.match(rolling,/class="month-grid"/);
@@ -245,6 +291,24 @@ test('calendar labels and long ranges use one consistent layout',()=>{
  assert.match(thirteen,/>Jan 2026<\/button>/);
  card._days.push({key:'2026-02-01',value:null,goal:100,status:'no-data'});
  assert.doesNotMatch(card._miniMonths(),/class="many-months unscrolled"/);
+});
+test('short ranges show weekday headings once and calendars can start on Sunday',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ card._config={entity:'sensor.steps',goal:100};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ card._days=L.makeKeys('2026-10-12','2026-10-19').map(key=>({key,value:20,goal:100,status:'missed'}));
+ const week=card._weekView();
+ assert.equal((week.match(/class="weekday"/g)||[]).length,7);
+ assert.equal((week.match(/class="dot missed/g)||[]).length,8);
+ assert.equal((week.match(/>Mon<\/span>/g)||[]).length,1);
+ assert.match(week,/style="--day-columns:7"/);
+ assert.doesNotMatch(week,/class="cell"/);
+ assert.match(card._monthGrid(2025,1),/class="weekday">Mon<\/span>/);
+ card._config.start_week_on_sunday=true;
+ assert.match(card._monthGrid(2025,1),/class="weekday">Sun<\/span>/);
+ const rolling=card._rollingMonthView();
+ assert.match(rolling,/class="weekday">Sun<\/span>/);
 });
 test('every day view exposes toggleable day selection',()=>{
  const Card=elements.get('daily-goals-card');
