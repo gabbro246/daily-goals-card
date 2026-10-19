@@ -5,17 +5,21 @@ const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../src/daily-goals-card.js'),'utf8');
 const elements=new Map();
-class HTMLElementStub {attachShadow(){const root={innerHTML:'',listeners:{},addEventListener(name,handler){this.listeners[name]=handler},getElementById(){return null}};this.shadowRoot=root;return root}}
+class HTMLElementStub {attachShadow(){const root={innerHTML:'',listeners:{},children:[],addEventListener(name,handler){this.listeners[name]=handler},appendChild(child){this.children.push(child)},getElementById(){return null}};this.shadowRoot=root;return root}}
 const globals={Date,Math,Intl,Number,Set,Map,Array,console,HTMLElement:HTMLElementStub,window:{__DAILY_GOALS_TEST__:{}},customElements:{get(n){return elements.get(n)},define(n,cls){elements.set(n,cls)}},document:{createElement(){return {addEventListener(){},attachShadow(){return {appendChild(){}}}}}}};
 vm.runInNewContext(source,globals);
 const L=globals.window.__DAILY_GOALS_TEST__;
 test('aggregation choices use native secondary descriptions',()=>{
  assert.equal(L.AGGREGATION_OPTIONS.length,5);
  assert.equal(L.AGGREGATION_OPTIONS.find(option=>option.value==='max').label,'Highest value per day');
- assert.match(L.AGGREGATION_OPTIONS.find(option=>option.value==='max').description,/steps/);
- assert.match(L.AGGREGATION_OPTIONS.find(option=>option.value==='change').description,/energy/);
+ assert.match(L.AGGREGATION_OPTIONS.find(option=>option.value==='max').description,/single high reading/);
+ assert.match(L.AGGREGATION_OPTIONS.find(option=>option.value==='change').description,/carries over from one day to the next/);
+ assert.match(L.AGGREGATION_OPTIONS.find(option=>option.value==='state').description,/ignores earlier readings/);
+ assert.match(L.AGGREGATION_OPTIONS.find(option=>option.value==='mean').description,/brief high or low reading/);
+ assert.match(L.AGGREGATION_OPTIONS.find(option=>option.value==='min').description,/single low reading/);
  for(const option of L.AGGREGATION_OPTIONS){
-  assert.ok(option.description.length>30);
+  assert.match(option.description,/^Uses /);
+  assert.match(option.description,/Choose this /);
   assert.doesNotMatch(option.label,/\(/);
  }
  assert.match(source,/name:'aggregation',selector:\{select:\{mode:'box',box_max_columns:1,options:AGGREGATION_OPTIONS\}\}/);
@@ -350,4 +354,43 @@ test('card state uses remaining amount for a day and completion count for ranges
   {key:'2999-01-01',status:'future'},
  ];
  assert.equal(card._stateText('week'),'1 of 3 days met');
+});
+test('German translations cover the card and visual editor',()=>{
+ assert.equal(L.translate('de-DE','goalMet'),'Ziel erreicht');
+ assert.equal(L.translate('de','ofGoal',{value:'25'}),'25 % des Ziels');
+ assert.equal(L.translate('fr','goalMet'),'Goal met');
+ assert.throws(()=>L.makeKeys('2024-01-01','2026-12-31','de'),/höchstens 750 Tagen/);
+
+ const options=L.localizedAggregationOptions('de-AT');
+ assert.equal(options.find(option=>option.value==='max').label,'Höchster Tageswert');
+ assert.match(options.find(option=>option.value==='change').description,/fortlaufenden Zählers/);
+ const schema=L.localizedFormSchema('de');
+ assert.equal(schema.find(field=>field.name==='direction').selector.select.options[0].label,'Mindestens (Minimum)');
+ assert.equal(schema.find(field=>field.name==='aggregation').selector.select.options[4].label,'Niedrigster Tageswert');
+
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ card._config={entities:['sensor.one','sensor.two'],goal:100,direction:'min',unit:'Schritte',show_legend:true};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'de-DE'},states:{
+  'sensor.one':{attributes:{friendly_name:'Erster Zähler'}},
+  'sensor.two':{attributes:{friendly_name:'Zweiter Zähler'}},
+ }};
+ card._days=[
+  {key:'2020-01-01',value:25,goal:100,status:'missed',parts:[]},
+  {key:'2020-01-02',value:100,goal:100,status:'met',parts:[]},
+ ];
+ assert.equal(card._label(card._days[1]),'Ziel erreicht');
+ assert.equal(card._stateText('day'),'Noch 75 Schritte');
+ assert.equal(card._percentageText(card._days[0]),'25 % des Ziels');
+ assert.equal(card._stateText('week'),'1 von 2 Tagen erreicht');
+ card._days=[{key:L.dateParts(new Date(),'UTC'),value:50,goal:100,status:'progress',parts:[{entity:'sensor.one',value:30},{entity:'sensor.two',value:20}]}];
+ assert.match(card._seriesLegend(),/aria-label="Messentitäten"/);
+ assert.match(card._seriesLegend(),/aria-label="Ausblenden Erster Zähler"/);
+
+ const Editor=elements.get('daily-goals-card-editor');
+ const editor=new Editor();
+ editor.hass={locale:{language:'de'}};
+ assert.equal(editor._form.computeLabel({name:'entities'}),'Messentitäten');
+ assert.match(editor._styles.innerHTML,/Darstellung der Tagesmarkierungen/);
+ assert.match(editor._styles.innerHTML,/Ausgefüllt/);
 });

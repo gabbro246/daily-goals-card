@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+- Added German translations for the card and its settings.
+- Made the daily measurement choices easier to understand and compare.
+
 ## 0.3.0
 - Added separate marker styles for successful, unsuccessful, and no-data days.
 - Added a compact grid for choosing day marker styles in the card editor.

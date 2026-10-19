@@ -54,11 +54,11 @@ Use `direction: min` when you want to reach at least the goal. Use `direction: m
 
 Choose the daily calculation that matches your entity:
 
-- `max` for counters that rise during the day and reset daily, such as daily steps.
-- `change` for continuously increasing meters, such as a total energy meter.
-- `state` for the last recorded value of each day.
-- `mean` for the daily average.
-- `min` for the lowest value of each day.
+- `max` uses the highest recorded value. Choose it when one high reading matters, or for a daily counter that only moves upward.
+- `change` uses how much a continuously increasing meter advanced, rather than its displayed reading. Choose it for a total that carries over between days.
+- `state` uses the last recorded value and ignores earlier readings. Choose it when only the end-of-day result matters.
+- `mean` uses the average of the recorded values. Choose it when the overall daily level matters more than brief highs or lows.
+- `min` uses the lowest recorded value. Choose it when one low reading should determine the result for the whole day.
 
 ### Combine multiple measurements
 
