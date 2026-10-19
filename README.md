@@ -44,7 +44,6 @@ For example, this tracks a step counter that resets each day:
 - type: custom:daily-goals-card
   title: Daily steps
   entity: sensor.daily_steps
-  icon: mdi:walk
   goal: 6000
   direction: min
   aggregation: max

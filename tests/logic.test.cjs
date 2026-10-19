@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../src/daily-goals-card.js'),'utf8');
 const elements=new Map();
-class HTMLElementStub {attachShadow(){return {innerHTML:'',addEventListener(){}}}}
+class HTMLElementStub {attachShadow(){const root={innerHTML:'',addEventListener(){}};this.shadowRoot=root;return root}}
 const globals={Date,Math,Intl,Number,Set,Map,Array,console,HTMLElement:HTMLElementStub,window:{__DAILY_GOALS_TEST__:{}},customElements:{get(n){return elements.get(n)},define(n,cls){elements.set(n,cls)}},document:{createElement(){return {addEventListener(){},attachShadow(){return {appendChild(){}}}}}}};
 vm.runInNewContext(source,globals);
 const L=globals.window.__DAILY_GOALS_TEST__;
@@ -65,4 +65,17 @@ test('energy collection key matches HA connection property',()=>{
  const collection={start:new Date('2026-09-01')};
  assert.equal(L.relevantEnergyCollection({connection:{_energy_lovelace:collection},panelUrl:'lovelace'},undefined),collection);
  assert.equal(L.relevantEnergyCollection({connection:{_energy_custom:collection},panelUrl:'lovelace'},'energy_custom'),collection);
+});
+
+test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ const ring=card._progressRing(25);
+ assert.match(ring,/stroke-dasharray="25 100"/);
+ assert.match(ring,/transform="rotate\(-90 16 16\)"/);
+ card._config={entity:'sensor.steps',goal:100};
+ card._hass={locale:{language:'en'},states:{'sensor.steps':{attributes:{unit_of_measurement:'steps'}}}};
+ const day=card._dayView({key:'2026-10-19',value:25,goal:100,status:'progress'});
+ assert.match(day,/d="M 190 12 H 307/);
+ assert.match(day,/stroke-dasharray="25 100"/);
 });

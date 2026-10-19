@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.1.0';
+  const VERSION = '0.1.1';
   const DAY_MS = 86400000;
   const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
   const numeric = (value) => {
@@ -128,76 +128,64 @@
     return null;
   };
   const css = `
-    :host { display:block; --goal-color:var(--primary-color,#03a9f4); --goal-track:var(--divider-color,rgba(120,120,120,.20)); --goal-muted:var(--secondary-text-color,#777); --goal-error:var(--error-color,#db4437); --goal-ink:var(--primary-text-color,#212121) }
+    :host { display:block; --goal-color:var(--primary-color,#03a9f4); --goal-success:var(--success-color,#43a047); --goal-track:var(--divider-color,rgba(120,120,120,.20)); --goal-muted:var(--secondary-text-color,#777); --goal-error:var(--error-color,#db4437); --goal-ink:var(--primary-text-color,#212121) }
     ha-card { overflow:hidden; color:var(--goal-ink) }
-    .header {display:flex;align-items:center;gap:12px;padding:16px;min-width:0}
-    .avatar {height:42px;width:42px;display:grid;place-items:center;border-radius:50%;flex-shrink:0;background:var(--secondary-background-color,rgba(127,127,127,.1));color:var(--goal-color)}
-    .header ha-icon{--mdc-icon-size:24px}
-    .heading{min-width:0;flex:1}
+    .header{padding:16px 16px 0;min-width:0}
     .name{font-size:var(--ha-font-size-l,18px);font-weight:var(--ha-font-weight-medium,500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .subtitle{font-size:var(--ha-font-size-s,12px);color:var(--goal-muted);margin-top:3px}
-    .body {border-top:1px solid var(--goal-track);padding:16px;}
-    .period {display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
-    .period strong{font-size:var(--ha-font-size-m,14px);font-weight:500}
-    .period span{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px)}
-    .canvas{height:300px;min-height:300px;display:flex;align-items:center;justify-content:center;min-width:0;overflow:hidden;}
-    .fill {width:100%;max-width:500px}
-    .oval {width:100%;height:148px;position:relative;display:grid;place-items:center;}
+    .body{padding:20px 16px 16px;min-width:0}
+    .fill{width:100%;max-width:500px;margin:0 auto}
+    .oval{width:100%;height:136px;position:relative;display:grid;place-items:center;color:var(--goal-color)}
+    .oval.met{color:var(--goal-success)}
+    .oval.missed{color:var(--goal-error)}
+    .oval.no-data,.oval.no-goal,.oval.future{color:var(--goal-track)}
     .oval svg{width:100%;height:100%;position:absolute;inset:0;overflow:visible}
-    .oval-text{display:flex;align-items:center;flex-direction:column;position:relative;z-index:1;gap:4px}
-    .oval-text .state{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px)}
-    .oval-text .measurement{font-size:clamp(26px,6vw,38px);line-height:1.2;font-weight:500;letter-spacing:-.04em}
+    .oval .track{stroke:var(--goal-track)}
+    .oval .value{stroke:currentColor;stroke-linecap:round}
+    .oval-text{display:flex;align-items:baseline;position:relative;z-index:1;gap:6px}
+    .oval-text .measurement{font-size:clamp(28px,7vw,40px);line-height:1.2;font-weight:500;letter-spacing:-.04em}
     .oval-text .unit{font-size:var(--ha-font-size-m,14px);color:var(--goal-muted)}
-    .oval.done .oval-text .state{color:var(--goal-color)}
-    .twostats{display:grid;grid-template-columns:1fr 1fr;text-align:center;border-top:1px solid var(--goal-track);padding-top:18px;margin:14px 16px 0}
-    .twostats > div+div{border-left:1px solid var(--goal-track)}
-    .twostats strong{display:block;font-size:clamp(16px,5vw,23px);font-weight:500}
-    .twostats small{display:block;font-size:var(--ha-font-size-s,12px);color:var(--goal-muted);margin-top:6px}
-    .strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:12px 3px;place-items:center;max-width:500px;margin:0 auto 16px;width:100%}
+    .strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px 3px;place-items:center;max-width:500px;margin:0 auto;width:100%}
     .cell{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
-    .cell span{font-size:var(--ha-font-size-xs,11px);color:var(--goal-muted)}
-    .dot{border:2px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:50%;display:grid;place-items:center;position:relative;isolation:isolate;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer}
-    .dot:focus-visible,.month-button:focus-visible{outline:2px solid var(--goal-color);outline-offset:2px}
+    .cell > span{font-size:var(--ha-font-size-xs,11px);color:var(--goal-muted)}
+    .dot{border:2px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:50%;display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer}
+    .dot > span{position:relative;z-index:1}
+    .dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-color);outline-offset:2px}
     .dot[aria-pressed=true]{outline:2px solid var(--goal-color);outline-offset:3px}
-    .dot.met{background:var(--goal-color);border-color:var(--goal-color);color:var(--text-primary-color,#fff)}
+    .dot.met{background:var(--goal-success);border-color:var(--goal-success);color:var(--text-primary-color,#fff)}
     .dot.missed{border-color:var(--goal-error);color:var(--goal-error)}
-    .dot.progress{border-color:transparent;background:conic-gradient(var(--goal-color) 0 var(--fill),var(--goal-track) var(--fill) 100%)}
-    .dot.progress::before{content:'';inset:3px;border-radius:50%;position:absolute;background:var(--ha-card-background,var(--card-background-color,#fff));z-index:-1}
-    .dot.no-data{border-style:dashed}
-    .dot.no-goal{border-color:var(--warning-color,#e3a23b);color:var(--warning-color,#e3a23b)}
-    .dot.future{opacity:.35}
-    .week-details{text-align:center;border-top:1px solid var(--goal-track);padding-top:16px}
-    .week-details strong{font-size:var(--ha-font-size-xl,24px);font-weight:500}
-    .week-details small{display:block;color:var(--goal-muted);margin-top:6px;font-size:12px}
+    .dot.progress{border-color:transparent}
+    .dot.no-data,.dot.no-goal{border-style:dashed}
+    .dot.future{opacity:.25}
+    .progress-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+    .progress-ring .track{fill:none;stroke:var(--goal-track)}
+    .progress-ring .value{fill:none;stroke:var(--goal-color);stroke-linecap:round}
     .month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px 3px;align-items:center;justify-items:center;max-width:430px;margin:0 auto;width:100%}
     .weekday{color:var(--goal-muted);font-size:11px}
     .month-grid .dot{width:clamp(27px,7vw,34px);height:clamp(27px,7vw,34px)}
-    .month-collection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;width:100%;}
-    .mini-month{border:1px solid var(--goal-track);border-radius:var(--ha-card-border-radius,12px);padding:8px;min-width:0;background:var(--ha-card-background,var(--card-background-color,#fff))}
+    .month-collection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 10px;width:100%}
+    .mini-month{padding:2px;min-width:0}
     .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;color:inherit;font-size:var(--ha-font-size-xs,11px);margin:0 0 8px;cursor:pointer;font-weight:500}
     .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px 2px;place-items:center}
-    .mini-dot{width:7px;height:7px;border:1px solid var(--goal-track);border-radius:50%;box-sizing:border-box}
-    .mini-dot.met{background:var(--goal-color);border-color:var(--goal-color)}
-    .mini-dot.missed{border-color:var(--goal-error);background:var(--goal-error);opacity:.48}
-    .mini-dot.progress{border-color:var(--goal-color)}
-    .mini-dot.no-data{border-style:dashed}
-    .mini-dot.no-goal{border-color:var(--warning-color,#e3a23b)}
-    .mini-dot.future{opacity:.22}
-    .mini-month.active{outline:2px solid var(--goal-color);outline-offset:1px}
-    .many-months{height:300px;max-height:300px;overflow:auto;align-self:stretch;display:block;width:100%;padding:4px 0;box-sizing:border-box}
-    .many-months.year{overflow:hidden}
-    .many-months.year .month-collection{grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
-    .many-months.year .mini-month{padding:5px}
+    .mini-dot{position:relative;width:7px;height:7px;border:1px solid var(--goal-track);border-radius:50%;box-sizing:border-box}
+    .mini-dot.met{background:var(--goal-success);border-color:var(--goal-success)}
+    .mini-dot.missed{border-color:var(--goal-error);background:var(--goal-error);opacity:.45}
+    .mini-dot.progress{border:0}
+    .mini-dot.no-data,.mini-dot.no-goal{border-style:dashed}
+    .mini-dot.future{opacity:.2}
+    .many-months{max-height:320px;overflow:auto;width:100%;padding:2px 0;box-sizing:border-box}
+    .many-months.year{max-height:none;overflow:visible}
+    .many-months.year .month-collection{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 8px}
     .many-months.year .mini-grid{gap:3px 1px}
     .many-months.year .mini-dot{width:6px;height:6px}
-    .drillback{display:flex;align-items:center;justify-content:flex-start;gap:6px;border:0;background:transparent;color:var(--primary-color,#03a9f4);padding:7px 2px 14px;cursor:pointer;font:inherit;font-size:13px}
-    .many-months .month-collection{grid-template-columns:repeat(3,minmax(0,1fr))}
-    .detail{height:26px;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1.3;gap:5px;overflow:hidden;}
-    .summary{border-top:1px solid var(--goal-track);padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:var(--ha-font-size-s,12px)}
-    .summary .value{font-weight:500;font-size:var(--ha-font-size-m,14px);text-align:right}
-    .muted{color:var(--goal-muted)}
+    .drillback{display:flex;align-items:center;border:0;background:transparent;color:var(--primary-color,#03a9f4);padding:0 0 14px;cursor:pointer;font:inherit;font-size:13px}
+    .detail,.summary{text-align:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1.4}
+    .detail{margin-top:14px}
+    .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:500}
+    .summary{margin-top:16px}
+    .muted{color:var(--goal-muted);text-align:center}
     .error{color:var(--goal-error);font-size:13px;text-align:center;line-height:1.5;padding:18px}
-    @media(max-width:340px){.body{padding:12px}.month-collection{gap:5px}.mini-month{padding:5px}.mini-grid{gap:3px 1px}.mini-dot{width:6px;height:6px}.strip .dot{width:27px;height:27px}.period strong{font-size:13px}}
+    @media(max-width:340px){.header{padding:12px 12px 0}.body{padding:16px 12px 12px}.month-collection{gap:12px 5px}.mini-grid{gap:3px 1px}.mini-dot{width:6px;height:6px}.strip .dot{width:27px;height:27px}}
   `;
 
   class DailyGoalsCard extends HTMLElement {
@@ -209,7 +197,7 @@
       this.shadowRoot.addEventListener('click', (e)=>{
         const btn=e.target.closest('[data-day],[data-month]');if(!btn)return;
         if(btn.dataset.day) this._selected=btn.dataset.day;
-        if(btn.dataset.month) this._selectedMonth=btn.dataset.month==='all' ? null : btn.dataset.month;
+        if(btn.dataset.month){this._selectedMonth=btn.dataset.month==='all' ? null : btn.dataset.month;this._selected=null;}
         this._render();
       });
     }
@@ -248,8 +236,12 @@
       },1100);
     }
     disconnectedCallback(){clearInterval(this._timer);this._timer=null;this._fetchId++}
-    getCardSize(){return 10}
-    getGridOptions(){return {columns:12,rows:8,min_columns:9,min_rows:8}}
+    getCardSize(){return 5}
+    getGridOptions(){
+      const kind=this._days?.length?getLayout(this._days.map(d=>d.key)):'day';
+      const rows=kind==='day'||kind==='week'?4:kind==='month'?6:7;
+      return {columns:12,rows,min_columns:9,min_rows:4};
+    }
     _tz(){return this._hass?.config?.time_zone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}
     _locale(){return this._hass?.locale?.language||navigator.language||'en'}
     _syncPeriod(force=false){
@@ -362,13 +354,18 @@
     if(row.goal===0)return row.status==='met'?100:0;
       return Math.max(0,Math.min(100,100*row.value/row.goal));
     }
+    _progressRing(pct,mini=false){
+      const size=mini?16:32,center=size/2,radius=mini?6.5:14,stroke=mini?2:2;
+      return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" cx="${center}" cy="${center}" r="${radius}" stroke-width="${stroke}"/><circle class="value" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${pct} 100" transform="rotate(-90 ${center} ${center})"/></svg>`;
+    }
     _renderDot(row,mini=false){
       if(!row)return '<span></span>';
-      if(mini)return `<span class="mini-dot ${row.status}" title="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}"></span>`;
-      const active=this._selected===row.key;
-      const sym=row.status==='no-goal'?'!':row.status==='no-data'?'–':Number(row.key.slice(-2));
       const pct=this._progress(row).toFixed(2);
-      return `<button type="button" class="dot ${row.status}" data-day="${row.key}" style="--fill:${pct}%" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${sym}</button>`;
+      const ring=row.status==='progress'?this._progressRing(pct,mini):'';
+      if(mini)return `<span class="mini-dot ${row.status}" title="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}">${ring}</span>`;
+      const active=this._selected===row.key;
+      const sym=row.status==='no-goal'||row.status==='no-data'?'–':Number(row.key.slice(-2));
+      return `<button type="button" class="dot ${row.status}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${ring}<span>${sym}</span></button>`;
     }
     _monthGrid(year,month,small=false){
       const limit=daysInMonth(year,month),prefix=weekOffset(year,month),map=new Map(this._days.map(d=>[d.key,d]));
@@ -385,55 +382,47 @@
       return `<div class="${small?'mini-grid':'month-grid'}">${cells}</div>`;
     }
     _miniMonths(){
-      if(this._selectedMonth){const [year,month]=this._selectedMonth.split('-').map(Number);return `<div class="fill"><button type="button" class="drillback" data-month="all">‹ &nbsp; All months</button>${this._monthGrid(year,month)}</div>`;}
+      if(this._selectedMonth){
+        const [year,month]=this._selectedMonth.split('-').map(Number);
+        return `<div class="fill"><button type="button" class="drillback" data-month="all">‹&nbsp; All months</button>${this._monthGrid(year,month)}${this._selectionDetail()}</div>`;
+      }
       const months=[...new Set(this._days.map(d=>d.key.slice(0,7)))];
       const isYear=getLayout(this._days.map(d=>d.key))==='year';
       return `<div class="many-months ${isYear?'year':''}"><div class="month-collection">${months.map(month=>{
         const [year,m]=month.split('-').map(Number);
         const title=this._formatDate(month+'-01',true);
         const shortTitle=new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',month:'short'}).format(new Date(month+'-01T12:00:00Z'));
-        const active=month===this._selectedMonth;
-        return `<div class="mini-month ${active?'active':''}"><button class="month-button" data-month="${month}" aria-label="Select ${escapeHTML(title)}">${escapeHTML(isYear?shortTitle:title)}</button>${this._monthGrid(year,m,true)}</div>`;
+        return `<div class="mini-month"><button class="month-button" data-month="${month}" aria-label="Select ${escapeHTML(title)}">${escapeHTML(isYear?shortTitle:title)}</button>${this._monthGrid(year,m,true)}</div>`;
       }).join('')}</div></div>`;
     }
     _dayView(row){
-      const unit=unitLabel(this._config,this._hass);const pct=this._progress(row);
-      const fill=row?.status==='met'?'var(--goal-color)':'var(--goal-color)';
-      const oval=`<div class="oval ${row.status}"><svg viewBox="0 0 380 145" preserveAspectRatio="none" aria-hidden="true"><rect x="12" y="12" width="356" height="121" rx="61" stroke="var(--goal-track)" stroke-width="9" fill="none"/><rect x="12" y="12" width="356" height="121" rx="61" pathLength="100" stroke="${fill}" stroke-width="9" stroke-linecap="round" fill="none" stroke-dasharray="${pct} 100" /></svg><div class="oval-text"><span class="state">${escapeHTML(this._label(row))}</span><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></div></div>`;
-      let left='—',leftLabel='Remaining',right='—',rightLabel='Progress';
-      if(row?.goal>=0 && row?.value!==null){
-        left=this._format(Math.max(0,(this._config.direction==='max'?row.goal-row.value:row.goal-row.value)));
-        leftLabel=this._config.direction==='max'?'Allowance remaining':'Remaining to goal';
-        right=`${this._format(Math.round(pct))}%`;
-        rightLabel=this._config.direction==='max'?'Budget used':'Goal reached';
-      }
-      return `<div class="fill">${oval}<div class="twostats"><div><strong>${left}</strong><small>${leftLabel}</small></div><div><strong>${right}</strong><small>${rightLabel}</small></div></div></div>`;
+      const unit=unitLabel(this._config,this._hass),pct=this._progress(row);
+      const path='M 190 12 H 307 A 61 60.5 0 0 1 368 72.5 A 61 60.5 0 0 1 307 133 H 73 A 61 60.5 0 0 1 12 72.5 A 61 60.5 0 0 1 73 12 H 190';
+      const label=`${this._formatDate(row.key)}: ${this._label(row)}. ${this._format(row.value)} ${unit}. ${this._format(row.goal)} ${unit} goal.`;
+      return `<div class="fill"><div class="oval ${row.status}" role="img" aria-label="${escapeHTML(label)}"><svg viewBox="0 0 380 145" preserveAspectRatio="none" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="9" fill="none"/><path class="value" d="${path}" pathLength="100" stroke-width="9" fill="none" stroke-dasharray="${pct} 100"/></svg><div class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></div></div></div>`;
+    }
+    _selectionDetail(){
+      const row=this._days.find(d=>d.key===this._selected);
+      if(!row)return '';
+      const unit=unitLabel(this._config,this._hass);
+      return `<div class="detail"><strong>${this._format(row.value)} ${escapeHTML(unit)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._label(row))}</div>`;
     }
     _weekView(){
-      const rows=this._days;
-      const selected=rows.find(d=>d.key===this._selected)||rows.find(d=>d.key===dateParts(new Date(),this._tz()))||rows[rows.length-1];
-      return `<div class="fill"><div class="strip">${rows.map(row=>`<div class="cell"><span>${escapeHTML(this._weekday(row.key))}</span>${this._renderDot(row)}<span>${Number(row.key.slice(-2))}</span></div>`).join('')}</div><div class="week-details"><strong>${this._format(selected?.value)} ${escapeHTML(unitLabel(this._config,this._hass))}</strong><small>${escapeHTML(this._formatDate(selected.key))} · ${escapeHTML(this._label(selected))}${selected.goal==null?'':` · ${this._format(selected.goal)} goal`}</small></div></div>`;
+      return `<div class="fill"><div class="strip">${this._days.map(row=>`<div class="cell"><span>${escapeHTML(this._weekday(row.key))}</span>${this._renderDot(row)}</div>`).join('')}</div>${this._selectionDetail()}</div>`;
     }
     _monthView(){
       const [year,month]=this._days[0].key.split('-').map(Number);
-      return `<div class="fill">${this._monthGrid(year,month)}</div>`;
-    }
-    _dateDescription(){
-      if(!this._period)return '';
-      const {start,end}=this._period;
-      return start===end?this._formatDate(start):`${this._formatDate(start)} – ${this._formatDate(end)}`;
+      return `<div class="fill">${this._monthGrid(year,month)}${this._selectionDetail()}</div>`;
     }
     _render(){
       if(!this._config||!this._hass)return;
       const root=this.shadowRoot.getElementById('content');if(!root)return;
       const c=this._config,hass=this._hass,rows=this._days,goal=c.goal_entity?null:numeric(c.goal);
       const title=c.title||hass.states?.[c.entity]?.attributes?.friendly_name||c.entity;
-      const icon=c.icon||hass.states?.[c.entity]?.attributes?.icon||'mdi:target';
       const unit=unitLabel(c,hass);
       const target=c.goal_entity?(hass.states?.[c.goal_entity]?.attributes?.friendly_name||c.goal_entity):`${this._format(goal)} ${unit}`;
-      const direction=c.direction==='max'?'At most':'At least';
+      const rule=c.direction==='max'?`${target} or less per day`:`${target} or more per day`;
       const kind=rows.length?getLayout(rows.map(d=>d.key)):'day';
-      const latest=rows.find(d=>d.key===this._selected)||rows[rows.length-1];
       let stage='';
       if(this._error)stage=`<div class="error">${escapeHTML(this._error)}</div>`;
       else if(this._loading)stage='<div class="muted">Loading history…</div>';
@@ -444,22 +433,15 @@
       const today=dateParts(new Date(),this._tz());
       const finalized=rows.filter(r=>r.key<today&&(r.status==='met'||r.status==='missed'));
       const met=finalized.filter(r=>r.status==='met').length;
-      const missing=rows.filter(r=>r.key<=today&&r.status==='no-data').length;
-      const footer=kind==='day'?`${escapeHTML(this._label(rows[0]))}`:`${met} / ${finalized.length} days met${missing?` · ${missing} missing`:''}`;
-      let detail='';
-      if(kind!=='day' && kind!=='week' && latest){
-        const selection=rows.find(r=>r.key===this._selected);
-        detail=selection?`${this._formatDate(selection.key)} · ${this._format(selection.value)} ${unit} · ${this._label(selection)}`:
-          kind==='year'||kind==='mini-months'?(this._selectedMonth?`${this._formatDate(this._selectedMonth+'-01',true)} selected`:'Select a month for context'):'Select a day for details';
-      }
-      root.innerHTML=`<div class="header"><div class="avatar"><ha-icon icon="${escapeHTML(icon)}"></ha-icon></div><div class="heading"><div class="name">${escapeHTML(title)}</div><div class="subtitle">${direction} ${escapeHTML(target)} / day</div></div></div><div class="body"><div class="period"><strong>${escapeHTML(this._dateDescription())}</strong><span>${kind==='day'?escapeHTML(this._weekday(rows[0]?.key||today)):escapeHTML(kind==='mini-months'?'Custom range':kind.charAt(0).toUpperCase()+kind.slice(1))}</span></div><div class="canvas">${stage}</div><div class="detail">${escapeHTML(detail)}</div></div><div class="summary"><span class="muted">${kind==='day'?'Daily goal':'Daily goals'}</span><span class="value">${footer}</span></div>`;
+      const summary=!this._loading&&!this._error&&kind!=='day'&&finalized.length
+        ?`<div class="summary">${met} of ${finalized.length} days met</div>`:'';
+      root.innerHTML=`<div class="header"><div class="name">${escapeHTML(title)}</div><div class="subtitle">Goal: ${escapeHTML(rule)}</div></div><div class="body">${stage}${summary}</div>`;
     }
   }
 
   const FORM_SCHEMA=[
     {name:'entity',required:true,selector:{entity:{domain:['sensor','number','input_number']}}},
     {name:'title',selector:{text:{}}},
-    {name:'icon',selector:{icon:{}}},
     {name:'goal',selector:{number:{mode:'box',step:'any'}}},
     {name:'goal_entity',selector:{entity:{domain:['sensor','number','input_number']}}},
     {name:'direction',selector:{select:{options:[{value:'min',label:'At least (minimum)'},{value:'max',label:'At most (maximum)'}]}}},
@@ -467,7 +449,7 @@
     {name:'unit',selector:{text:{}}},
     {name:'collection_key',selector:{text:{}}},
   ];
-  const FORM_LABELS={entity:'Measurement entity',title:'Card title (optional)',icon:'Icon (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
+  const FORM_LABELS={entity:'Measurement entity',title:'Card title (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
   class DailyGoalsCardEditor extends HTMLElement {
     constructor(){super();this.attachShadow({mode:'open'});this._form=document.createElement('ha-form');this._form.schema=FORM_SCHEMA;this._form.computeLabel=(schema)=>FORM_LABELS[schema.name]||schema.name;
       this._form.addEventListener('value-changed',e=>{if(!this._config)return;const newConfig={...this._config,...e.detail.value,type:'custom:daily-goals-card'};this._config=newConfig;this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:newConfig},bubbles:true,composed:true}));});this.shadowRoot.appendChild(this._form)}
