@@ -68,6 +68,7 @@ test('daily views based on selected range boundaries',()=>{
  assert.equal(layout('2026-09-23','2026-09-23'),'day');
  assert.equal(layout('2026-09-21','2026-09-27'),'week');
  assert.equal(layout('2026-09-01','2026-09-30'),'month');
+ assert.equal(layout('2026-09-19','2026-10-19'),'rolling-month');
  assert.equal(layout('2026-01-01','2026-12-31'),'year');
  assert.equal(layout('2026-09-18','2026-10-05'),'months');
  assert.equal(layout('2026-01-22','2026-08-25'),'mini-months');
@@ -81,6 +82,15 @@ test('energy collection key matches HA connection property',()=>{
 test('measurement entities support legacy cards and prefer plural config',()=>{
  assert.equal(Array.from(L.measurementEntities({entity:'sensor.one'})).join(','),'sensor.one');
  assert.equal(Array.from(L.measurementEntities({entity:'sensor.one',entities:['sensor.two','sensor.two']})).join(','),'sensor.two');
+});
+test('legend visibility is controlled by one boolean setting',()=>{
+ const Card=elements.get('daily-goals-card');
+ assert.equal(Card.getStubConfig({},['sensor.one']).show_legend,false);
+ assert.equal(L.shouldShowLegend({entities:['sensor.one']}),false);
+ assert.equal(L.shouldShowLegend({entities:['sensor.one','sensor.two']}),false);
+ assert.equal(L.shouldShowLegend({entities:['sensor.one'],show_legend:true}),true);
+ assert.equal(L.shouldShowLegend({entities:['sensor.one','sensor.two'],show_legend:false}),false);
+ assert.match(source,/name:'show_legend',selector:\{boolean:\{\}\}/);
 });
 
 test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
@@ -101,8 +111,8 @@ test('compact status visuals are consistent and readable',()=>{
  assert.match(source,/\.series-cap\{fill:none;stroke-linecap:round/);
  assert.match(source,/\.dot\.met\{background:var\(--goal-success\)/);
  assert.match(source,/\.dot\.missed\{background:var\(--goal-error\)/);
- assert.match(source,/\.mini-dot\.met::after\{background:var\(--goal-success\)/);
- assert.match(source,/\.mini-dot\.missed::after\{border-color:var\(--goal-error\);background:var\(--goal-error\)/);
+ assert.match(source,/\.mini-dot\.met::after\{background:var\(--goal-small-met\)/);
+ assert.match(source,/\.mini-dot\.missed::after\{border-color:var\(--goal-small-missed\);background:var\(--goal-small-missed\)/);
  assert.match(source,/\.dot\.no-data,.dot\.no-goal\{border-color:var\(--goal-unavailable\);border-style:dashed/);
  assert.match(source,/\.mini-dot\.future\{opacity:\.55\}/);
  assert.match(source,/\.mini-dot\.future::after\{border-color:var\(--goal-muted\)\}/);
@@ -132,7 +142,7 @@ test('current day uses stacked entity colors and a toggleable graph legend',()=>
  const Card=elements.get('daily-goals-card');
  const card=new Card();
  const today=L.dateParts(new Date(),'UTC');
- card._config={entities:['sensor.one','sensor.two'],goal:100};
+ card._config={entities:['sensor.one','sensor.two'],goal:100,show_legend:true};
  card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{
   'sensor.one':{attributes:{friendly_name:'First counter',unit_of_measurement:'steps'}},
   'sensor.two':{attributes:{friendly_name:'Second counter',unit_of_measurement:'steps'}},
@@ -159,6 +169,28 @@ test('current day uses stacked entity colors and a toggleable graph legend',()=>
  assert.doesNotMatch(card._dayView(full),/class="series-cap/);
  const finished={...row,key:'2020-01-01',status:'met'};
  assert.doesNotMatch(card._renderDot(finished),/series-value/);
+ card._config.show_legend=false;
+ assert.equal(card._seriesLegend(),'');
+ card._config={entities:['sensor.one'],goal:100,show_legend:true};
+ card._days=[{...row,parts:[{entity:'sensor.one',value:30}]}];
+ const singleLegend=card._seriesLegend();
+ assert.match(singleLegend,/First counter/);
+ assert.doesNotMatch(singleLegend,/data-toggle-entity/);
+});
+test('rolling month layout and emphasized current rings use full-size calendar styling',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ const today=L.dateParts(new Date(),'UTC');
+ card._config={entity:'sensor.steps',goal:100};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ card._days=L.makeKeys(L.keyPlus(today,-30),today).map(key=>({key,value:25,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.steps',value:25}]}));
+ const rolling=card._rollingMonthView();
+ assert.match(rolling,/class="month-grid"/);
+ assert.doesNotMatch(rolling,/class="mini-grid"/);
+ assert.match(card._weekView(),/stroke-width="2.75"/);
+ assert.match(card._renderDot(card._days.at(-1),true,true),/stroke-width="2.75"/);
+ card._days=L.makeKeys(L.keyPlus(today,-365),today).map(key=>({key,value:25,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.steps',value:25}]}));
+ assert.match(card._miniMonths(),/stroke-width="2.75"/);
 });
 test('calendar labels and long ranges use one consistent layout',()=>{
  const Card=elements.get('daily-goals-card');

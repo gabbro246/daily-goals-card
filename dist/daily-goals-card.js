@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.2.2';
+  const VERSION = '0.2.3';
   const DAY_MS = 86400000;
   const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
   const numeric = (value) => {
@@ -51,6 +51,7 @@
     (Array.isArray(config?.entities)?config.entities:(typeof config?.entity==='string'?[config.entity]:[]))
       .filter(id=>typeof id==='string'&&id)
   )];
+  const shouldShowLegend = (config) => config?.show_legend === true || (config?.show_legend === undefined && config?.legend === 'show');
   const unitLabel = (config,hass) => config.unit || hass?.states?.[measurementEntities(config)[0]]?.attributes?.unit_of_measurement || '';
   const stateValue = (state) => numeric(state?.state);
   const dailyFromStats = (rows, aggregation, tz) => {
@@ -121,6 +122,7 @@
     if(n===1)return 'day';
     if(n<=14)return 'week';
     if(first.slice(8)==='01' && last===keyPlus(first.slice(0,7)+'-01',daysInMonth(Number(first.slice(0,4)),Number(first.slice(5,7)))-1)) return 'month';
+    if(n===31)return 'rolling-month';
     if(first.slice(5)==='01-01' && last.slice(5)==='12-31' && first.slice(0,4)===last.slice(0,4))return 'year';
     if(n<=62)return 'months';
     return 'mini-months';
@@ -137,6 +139,8 @@
       --goal-color:var(--ha-color-fill-primary-loud-resting,var(--primary-color,#03a9f4));
       --goal-success:var(--ha-color-fill-success-loud-resting,var(--success-color,#43a047));
       --goal-error:var(--ha-color-fill-danger-loud-resting,var(--error-color,#db4437));
+      --goal-small-met:var(--ha-color-fill-primary-loud-resting,var(--info-color,#039be5));
+      --goal-small-missed:var(--ha-color-fill-warning-loud-resting,var(--warning-color,#ffa600));
       --goal-track:var(--ha-color-border-neutral-quiet,var(--divider-color,rgba(120,120,120,.20)));
       --goal-muted:var(--ha-color-text-secondary,var(--secondary-text-color,#777));
       --goal-unavailable:var(--state-unavailable-color,var(--disabled-text-color,#bdbdbd));
@@ -193,8 +197,8 @@
     .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-1,4px) 2px;place-items:center}
     .mini-dot{position:relative;width:12px;height:12px;border:0;background:transparent;padding:0;border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box;cursor:pointer}
     .mini-dot::after{content:"";position:absolute;inset:2px;border:1px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
-    .mini-dot.met::after{background:var(--goal-success);border-color:var(--goal-success)}
-    .mini-dot.missed::after{border-color:var(--goal-error);background:var(--goal-error)}
+    .mini-dot.met::after{background:var(--goal-small-met);border-color:var(--goal-small-met)}
+    .mini-dot.missed::after{border-color:var(--goal-small-missed);background:var(--goal-small-missed)}
     .mini-dot.progress::after{border:0}
     .mini-dot.no-data::after,.mini-dot.no-goal::after{border-color:var(--goal-unavailable);border-style:dashed}
     .mini-dot.future{opacity:.55}
@@ -210,6 +214,8 @@
     .series-legend li{display:flex;align-items:center;min-width:0;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px}
     .legend-toggle,.legend-label{border:0;background:transparent;font:inherit;padding:0;cursor:pointer}
     .legend-toggle{display:grid;place-items:center;width:24px;height:24px;margin-inline-end:2px;color:var(--series-color)}
+    .legend-toggle.static{cursor:default}
+    .legend-toggle.static .legend-marker::after{content:""}
     .legend-marker{display:grid;place-items:center;width:14px;height:14px;border:2px solid currentColor;border-radius:50%;box-sizing:border-box;background:currentColor}
     .legend-marker::after{content:"✓";color:var(--card-background-color,#fff);font-size:9px;font-weight:700;line-height:1}
     .series-legend li.hidden .legend-marker{background:transparent;color:var(--goal-muted)}
@@ -247,7 +253,7 @@
     static getConfigElement(){return document.createElement('daily-goals-card-editor')}
     static getStubConfig(hass,entities=[]){
       const pick=entities.find(e=>e.startsWith('sensor.'))||'sensor.daily_steps';
-      return {type:'custom:daily-goals-card',entities:[pick],goal:6000,direction:'min',aggregation:'max'};
+      return {type:'custom:daily-goals-card',entities:[pick],goal:6000,direction:'min',aggregation:'max',show_legend:false};
     }
     setConfig(config){
       if(config?.entity!==undefined&&typeof config.entity!=='string')throw new Error('entity must be an entity ID.');
@@ -258,6 +264,7 @@
       if(config.collection_key && !config.collection_key.startsWith('energy_'))throw new Error('collection_key must begin with energy_.');
       if(config.direction && !['min','max'].includes(config.direction))throw new Error('direction must be min or max.');
       if(config.aggregation && !VALID_AGG.has(config.aggregation))throw new Error('aggregation must be change, max, min, mean, or state.');
+      if(config.show_legend!==undefined && typeof config.show_legend!=='boolean')throw new Error('show_legend must be true or false.');
       const key=JSON.stringify(config);
       if(key!==JSON.stringify(this._config)){this._config={...config};this._signature='';this._lastDataRequest='';this._selected=null;this._selectedMonth=null;this._hiddenEntities.clear();this._syncPeriod(true)}
       this._render();
@@ -468,8 +475,8 @@
         return result;
       });
     }
-    _stackedRing(row,mini=false){
-      const size=mini?16:32,center=size/2,radius=mini?7:15,stroke=2;
+    _stackedRing(row,mini=false,emphasized=false){
+      const size=mini?16:32,center=size/2,radius=mini?7:15,stroke=emphasized?2.75:2;
       const segments=this._seriesSegments(row).filter(segment=>segment.length>0);
       const values=segments.map(segment=>`<circle class="series-value${segment.hidden?' hidden':''}" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${segment.length.toFixed(3)} ${(100-segment.length).toFixed(3)}" stroke-dashoffset="${(-segment.offset).toFixed(3)}" transform="rotate(-90 ${center} ${center})" style="stroke:${segment.color}"/>`).join('');
       const total=segments.length?segments.at(-1).offset+segments.at(-1).length:0;
@@ -483,21 +490,21 @@
       const caps=segments.length&&total<99.999?[[segments[0],0],[segments.at(-1),total]].map(([segment,offset])=>`<path class="series-cap${segment.hidden?' hidden':''}" d="${path}" pathLength="100" stroke-width="8" fill="none" stroke-dasharray="0 100" stroke-dashoffset="${(-offset).toFixed(3)}" style="stroke:${segment.color}"/>`).join(''):'';
       return values+caps;
     }
-    _progressRing(pct,mini=false){
-      const size=mini?16:32,center=size/2,radius=mini?7:15,stroke=2;
+    _progressRing(pct,mini=false,emphasized=false){
+      const size=mini?16:32,center=size/2,radius=mini?7:15,stroke=emphasized?2.75:2;
       return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" cx="${center}" cy="${center}" r="${radius}" stroke-width="${stroke}"/><circle class="value" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${pct} 100" transform="rotate(-90 ${center} ${center})"/></svg>`;
     }
-    _renderDot(row,mini=false){
+    _renderDot(row,mini=false,emphasized=false){
       if(!row)return '<span></span>';
       const pct=this._progress(row).toFixed(2),multiCurrent=this._isMultiCurrent(row);
-      const ring=multiCurrent?this._stackedRing(row,mini):(row.status==='progress'?this._progressRing(pct,mini):'');
+      const ring=multiCurrent?this._stackedRing(row,mini,emphasized):(row.status==='progress'?this._progressRing(pct,mini,emphasized):'');
       const active=this._selected===row.key,currentClass=multiCurrent?' multi-current':'';
       const dayLabel=`${this._formatDate(row.key)}: ${this._label(row)}`;
       if(mini)return `<button type="button" class="mini-dot ${row.status}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(dayLabel)}" title="${escapeHTML(dayLabel)}">${ring}</button>`;
       const sym=row.status==='no-goal'||row.status==='no-data'?'–':Number(row.key.slice(-2));
       return `<button type="button" class="dot ${row.status}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${ring}<span>${sym}</span></button>`;
     }
-    _monthGrid(year,month,small=false){
+    _monthGrid(year,month,small=false,emphasized=false){
       const limit=daysInMonth(year,month),prefix=weekOffset(year,month),map=new Map(this._days.map(d=>[d.key,d]));
       let cells='';
       if(!small){
@@ -507,7 +514,7 @@
       for(let i=0;i<prefix;i++)cells+='<span></span>';
       for(let d=1;d<=limit;d++){
         const key=`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        cells+=this._renderDot(map.get(key),small);
+        cells+=this._renderDot(map.get(key),small,emphasized);
       }
       return `<div class="${small?'mini-grid':'month-grid'}">${cells}</div>`;
     }
@@ -516,13 +523,13 @@
         const [year,month]=this._selectedMonth.split('-').map(Number);
         return `<div class="fill"><button type="button" class="drillback" data-month="all">‹&nbsp; All months</button>${this._monthGrid(year,month)}${this._selectionDetail()}</div>`;
       }
-      const months=[...new Set(this._days.map(d=>d.key.slice(0,7)))];
+      const months=[...new Set(this._days.map(d=>d.key.slice(0,7)))],yearSized=this._days.length>=365&&this._days.length<=367;
       const unscrolled=months.length<=13;
       return `<div class="many-months${unscrolled?' unscrolled':''}"><div class="month-collection">${months.map(month=>{
         const [year,m]=month.split('-').map(Number);
         const title=this._formatDate(month+'-01',true);
         const shortTitle=new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',year:'numeric',month:'short'}).format(new Date(month+'-01T12:00:00Z'));
-        return `<div class="mini-month"><button class="month-button" data-month="${month}" aria-label="Select ${escapeHTML(title)}">${escapeHTML(shortTitle)}</button>${this._monthGrid(year,m,true)}</div>`;
+        return `<div class="mini-month"><button class="month-button" data-month="${month}" aria-label="Select ${escapeHTML(title)}">${escapeHTML(shortTitle)}</button>${this._monthGrid(year,m,true,yearSized)}</div>`;
       }).join('')}</div></div>${this._selectionDetail()}`;
     }
     _dayView(row){
@@ -540,20 +547,30 @@
       return `<div class="detail"><strong>${this._format(row.value)} ${escapeHTML(unit)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._percentageText(row))}</div>`;
     }
     _weekView(){
-      return `<div class="fill"><div class="strip">${this._days.map(row=>`<div class="cell"><span>${escapeHTML(this._weekday(row.key))}</span>${this._renderDot(row)}</div>`).join('')}</div>${this._selectionDetail()}</div>`;
+      return `<div class="fill"><div class="strip">${this._days.map(row=>`<div class="cell"><span>${escapeHTML(this._weekday(row.key))}</span>${this._renderDot(row,false,true)}</div>`).join('')}</div>${this._selectionDetail()}</div>`;
     }
     _monthView(){
       const [year,month]=this._days[0].key.split('-').map(Number);
       return `<div class="fill">${this._monthGrid(year,month)}${this._selectionDetail()}</div>`;
     }
+    _rollingMonthView(){
+      const first=this._days[0]?.key;
+      if(!first)return '';
+      const labels=Array.from({length:7},(_,i)=>new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',weekday:'short'}).format(new Date(Date.UTC(2026,0,5+i))));
+      const prefix=(new Date(`${first}T12:00:00Z`).getUTCDay()+6)%7;
+      const cells=labels.map(label=>`<span class="weekday">${escapeHTML(label)}</span>`).join('')+'<span></span>'.repeat(prefix)+this._days.map(row=>this._renderDot(row)).join('');
+      return `<div class="fill"><div class="month-grid">${cells}</div>${this._selectionDetail()}</div>`;
+    }
     _seriesLegend(){
+      if(!shouldShowLegend(this._config))return '';
       const row=this._days.find(day=>day.key===dateParts(new Date(),this._tz()));
-      if(!this._isMultiCurrent(row))return '';
-      const unit=unitLabel(this._config,this._hass);
+      if(!row?.parts?.length)return '';
+      const unit=unitLabel(this._config,this._hass),interactive=row.parts.length>1;
       const items=row.parts.map((part,index)=>{
         const hidden=this._hiddenEntities.has(part.entity),name=this._hass.states?.[part.entity]?.attributes?.friendly_name||part.entity;
         const value=`${this._format(part.value)}${unit?` ${unit}`:''}`;
-        return `<li class="${hidden?'hidden':''}" style="--series-color:${this._seriesColor(index)}"><button type="button" class="legend-toggle" data-toggle-entity="${escapeHTML(part.entity)}" aria-pressed="${!hidden}" aria-label="${hidden?'Show':'Hide'} ${escapeHTML(name)}"><span class="legend-marker" aria-hidden="true"></span></button><button type="button" class="legend-label" data-more-info="${escapeHTML(part.entity)}" title="${escapeHTML(name)}">${escapeHTML(name)}</button><span class="legend-value">${escapeHTML(value)}</span></li>`;
+        const marker=interactive?`<button type="button" class="legend-toggle" data-toggle-entity="${escapeHTML(part.entity)}" aria-pressed="${!hidden}" aria-label="${hidden?'Show':'Hide'} ${escapeHTML(name)}"><span class="legend-marker" aria-hidden="true"></span></button>`:`<span class="legend-toggle static" aria-hidden="true"><span class="legend-marker"></span></span>`;
+        return `<li class="${hidden?'hidden':''}" style="--series-color:${this._seriesColor(index)}">${marker}<button type="button" class="legend-label" data-more-info="${escapeHTML(part.entity)}" title="${escapeHTML(name)}">${escapeHTML(name)}</button><span class="legend-value">${escapeHTML(value)}</span></li>`;
       }).join('');
       return `<ul class="series-legend" aria-label="Measurement entities">${items}</ul>`;
     }
@@ -581,6 +598,7 @@
       else if(kind==='day')stage=this._dayView(rows[0]);
       else if(kind==='week')stage=this._weekView();
       else if(kind==='month')stage=this._monthView();
+      else if(kind==='rolling-month')stage=this._rollingMonthView();
       else stage=this._miniMonths();
       const legend=!this._loading&&!this._error?this._seriesLegend():'';
       const state=this._stateText(kind);
@@ -605,14 +623,15 @@
     {name:'goal_entity',selector:{entity:{domain:['sensor','number','input_number']}}},
     {name:'direction',selector:{select:{options:[{value:'min',label:'At least (minimum)'},{value:'max',label:'At most (maximum)'}]}}},
     {name:'aggregation',selector:{select:{mode:'box',box_max_columns:1,options:AGGREGATION_OPTIONS}}},
+    {name:'show_legend',selector:{boolean:{}}},
     {name:'unit',selector:{text:{}}},
     {name:'collection_key',selector:{text:{}}},
   ];
-  const FORM_LABELS={entities:'Measurement entities',title:'Card title (optional)',icon:'Icon (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
+  const FORM_LABELS={entities:'Measurement entities',title:'Card title (optional)',icon:'Icon (optional)',goal:'Fixed daily goal (ignored when goal entity is set)',goal_entity:'Daily goal entity (optional)',direction:'Goal rule',aggregation:'Measurement aggregation',show_legend:'Show measurement legend',unit:'Unit override (optional)',collection_key:'Energy date collection key (optional)'};
   class DailyGoalsCardEditor extends HTMLElement {
     constructor(){super();this.attachShadow({mode:'open'});this._form=document.createElement('ha-form');this._form.schema=FORM_SCHEMA;this._form.computeLabel=(schema)=>FORM_LABELS[schema.name]||schema.name;
-      this._form.addEventListener('value-changed',e=>{if(!this._config)return;const values=e.detail.value,newConfig={...this._config,...values,type:'custom:daily-goals-card'};if(Array.isArray(values.entities))delete newConfig.entity;this._config=newConfig;this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:newConfig},bubbles:true,composed:true}));});this.shadowRoot.appendChild(this._form)}
-    setConfig(config){this._config={...config};const data={...config,entities:measurementEntities(config)};delete data.entity;this._form.data=data;}
+      this._form.addEventListener('value-changed',e=>{if(!this._config)return;const values=e.detail.value,newConfig={...this._config,...values,type:'custom:daily-goals-card'};if(Array.isArray(values.entities))delete newConfig.entity;delete newConfig.legend;this._config=newConfig;this.dispatchEvent(new CustomEvent('config-changed',{detail:{config:newConfig},bubbles:true,composed:true}));});this.shadowRoot.appendChild(this._form)}
+    setConfig(config){this._config={...config};const data={...config,entities:measurementEntities(config),show_legend:config.show_legend??config.legend==='show'};delete data.entity;delete data.legend;this._form.data=data;}
     set hass(hass){this._form.hass=hass;}
   }
   if(!customElements.get('daily-goals-card'))customElements.define('daily-goals-card',DailyGoalsCard);
@@ -621,5 +640,5 @@
   if(!window.customCards.some(c=>c.type==='daily-goals-card'))window.customCards.push({type:'daily-goals-card',name:'Daily Goals',description:'Daily goals synced with the Energy date picker',preview:true});
   console.info(`%c DAILY GOALS CARD %c v${VERSION} `,'background:#03a9f4;color:white;font-weight:bold','background:#eee;color:#222');
   // Exposed only for programmatic tests; does not affect Home Assistant UI.
-  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,measurementEntities,dailyFromStats,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,AGGREGATION_OPTIONS};
+  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,measurementEntities,shouldShowLegend,dailyFromStats,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,AGGREGATION_OPTIONS};
 })();

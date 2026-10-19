@@ -77,6 +77,8 @@ Select multiple entities when several measurements contribute to the same goal:
 
 The card adds their daily values together. For today, each entity has its own color and can be shown or hidden from the legend. Finished days show only whether the combined goal was met. Use entities with the same unit and daily calculation.
 
+Use the **Show measurement legend** switch in the card editor, or set `show_legend: true` or `show_legend: false` in YAML. New cards default to hiding the legend.
+
 ### Use a changing goal
 
 Select a goal entity instead of entering a fixed number when your target can change:
