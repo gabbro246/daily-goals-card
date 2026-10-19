@@ -1,9 +1,12 @@
 # Changelog
 
+## 0.2.2
+- Added clearer descriptions for choosing a daily measurement calculation.
+
 ## 0.2.1
 - Moved goal summaries below the title and added percentage details for selected days.
-- Made progress and status rings clearer and more consistent.
-- Changed the year view to show three months per row.
+- Improved progress and status markers, including clearer future and missing-data states.
+- Standardized date labels and multi-month layouts.
 
 ## 0.2.0
 - Added combined goals for multiple measurement entities.
