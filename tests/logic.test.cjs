@@ -1,3 +1,4 @@
+
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
@@ -92,7 +93,7 @@ test('energy collection key matches HA connection property',()=>{
  assert.equal(L.relevantEnergyCollection({connection:{_energy:collection}},undefined),collection);
 });
 
-test('history loading starts only while connected and restarts after reconnect',()=>{
+test('an interrupted history load restarts after reconnect',()=>{
  const Card=elements.get('daily-goals-card');
  const card=new Card();
  card._config={entity:'sensor.energy',goal:10};
@@ -100,13 +101,15 @@ test('history loading starts only while connected and restarts after reconnect',
  let loads=0;
  card._load=()=>{loads++;card._loading=true};
  card._syncPeriod(true);
- assert.equal(loads,0);
+ assert.equal(loads,1);
  card.connectedCallback();
  assert.equal(loads,1);
  card.disconnectedCallback();
  assert.equal(card._loading,false);
+ assert.equal(card._restartOnConnect,true);
  card.connectedCallback();
  assert.equal(loads,2);
+ assert.equal(card._restartOnConnect,false);
  card.disconnectedCallback();
 });
 
@@ -191,7 +194,7 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  const day=card._dayView({key:'2026-10-19',value:25,goal:100,status:'progress'});
  assert.match(day,/viewBox="0 0 250 100"/);
  assert.match(day,/d="M 125 8 H 200 A 42 42/);
- assert.match(day,/stroke-width="12"/);
+ assert.match(day,/stroke-width="10"/);
  assert.match(day,/stroke-dasharray="25 100"/);
 });
 test('status colors, sizes, and outlines are consistent within each visual scale',()=>{
@@ -201,9 +204,9 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.match(source,/--goal-success:var\([^\n]+#43a047/);
  assert.match(source,/--goal-error:var\([^\n]+#db4437/);
  assert.doesNotMatch(source,/goal-small-(?:met|missed)/);
- assert.match(source,/\.dot\{border:4px solid var\(--goal-track\)[^\n]+width:32px;height:32px/);
+ assert.match(source,/\.dot\{border:3px solid var\(--goal-track\)[^\n]+width:32px;height:32px/);
  assert.match(source,/\.mini-dot\{[^\n]+width:12px;height:12px/);
- assert.match(source,/\.mini-dot::after\{[^\n]+border:2px solid var\(--goal-track\)/);
+ assert.match(source,/\.mini-dot::after\{[^\n]+border:1\.5px solid var\(--goal-track\)/);
  assert.match(source,/\.mini-dot\.met::after\{background:var\(--goal-success\);border-color:var\(--goal-success\)/);
  assert.match(source,/\.mini-dot\.missed::after\{border-color:var\(--goal-error\);background:var\(--goal-error\)/);
  assert.match(source,/\.dot\.progress,.dot\.multi-current\{border-width:0\}/);
@@ -251,11 +254,13 @@ test('current day uses stacked entity colors and a toggleable graph legend',()=>
  assert.match(day,/class="oval progress multi-current"/);
  assert.equal((day.match(/class="series-value/g)||[]).length,2);
  assert.equal((day.match(/class="series-cap/g)||[]).length,2);
+ assert.match(day,/class="series-value[^"]*"[^>]+stroke-width="10"/);
  assert.match(day,/stroke-dasharray="0 100"/);
  assert.match(day,/stroke-dasharray="30\.000 70\.000"/);
  assert.match(day,/stroke-dasharray="20\.000 80\.000"/);
  assert.match(day,/stroke-dashoffset="-30\.000"/);
  assert.match(card._renderDot(row),/class="dot progress multi-current"/);
+ assert.match(card._renderDot(row),/stroke-width="3"/);
  const legend=card._seriesLegend();
  assert.match(legend,/First counter/);
  assert.match(legend,/30 steps/);
@@ -282,18 +287,18 @@ test('rolling month and progress rings use fixed marker scales',()=>{
  card._config={entity:'sensor.steps',goal:100};
  card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
  const unavailable=card._unavailableRing();
- assert.match(unavailable,/viewBox="0 0 32 32".*r="14".*pathLength="21".*stroke-width="4".*stroke-dasharray="1 2"/);
+ assert.match(unavailable,/viewBox="0 0 32 32".*r="14\.5".*pathLength="21".*stroke-width="3".*stroke-dasharray="1 2"/);
  const miniUnavailable=card._unavailableRing(true);
- assert.match(miniUnavailable,/viewBox="0 0 12 12".*r="5".*pathLength="15".*stroke-width="2".*stroke-dasharray="1 2"/);
+ assert.match(miniUnavailable,/viewBox="0 0 12 12".*r="5\.25".*pathLength="15".*stroke-width="1\.5".*stroke-dasharray="1 2"/);
  card._days=L.makeKeys(L.keyPlus(today,-30),today).map(key=>({key,value:25,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.steps',value:25}]}));
  const rolling=card._rollingMonthView();
  assert.match(rolling,/class="month-grid"/);
  assert.doesNotMatch(rolling,/class="mini-grid"/);
- assert.match(card._weekView(),/stroke-width="4"/);
- assert.match(rolling,/stroke-width="4"/);
- assert.match(card._renderDot(card._days.at(-1),true),/viewBox="0 0 12 12".*r="5".*stroke-width="2"/);
+ assert.match(card._weekView(),/stroke-width="3"/);
+ assert.match(rolling,/stroke-width="3"/);
+ assert.match(card._renderDot(card._days.at(-1),true),/viewBox="0 0 12 12".*r="5\.25".*stroke-width="1\.5"/);
  card._days=L.makeKeys(L.keyPlus(today,-365),today).map(key=>({key,value:25,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.steps',value:25}]}));
- assert.match(card._miniMonths(),/stroke-width="2"/);
+ assert.match(card._miniMonths(),/stroke-width="1\.5"/);
  assert.doesNotMatch(card._miniMonths(),/stroke-width="2.75"/);
 });
 test('calendar labels and long ranges use one consistent layout',()=>{

@@ -1,8 +1,13 @@
 # Changelog
 
+## 0.4.2
+- Restored cards that disappeared after updating to 0.4.1.
+- Made interrupted history loading restart correctly in Sidebar views.
+
 ## 0.4.1
 - Fixed history loading getting stuck on Sidebar and other dashboard layouts.
 - Prevented date selections from unrelated dashboards affecting the card.
+- Made progress outlines lighter across daily, weekly, and compact calendar views.
 
 ## 0.4.0
 - Added German translations for the card and its settings.

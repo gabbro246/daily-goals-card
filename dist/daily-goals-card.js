@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.4.1';
+  const VERSION = '0.4.2';
   const DAY_MS = 86400000;
   const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
   const TRANSLATIONS = {
@@ -233,7 +233,7 @@
     .oval-text .unit{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);color:var(--goal-muted)}
     .strip{display:grid;grid-template-columns:repeat(var(--day-columns,7),minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;place-items:center;max-width:500px;margin:0 auto;width:100%}
     .weekday,.month-button{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted)}
-    .dot{border:4px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
+    .dot{border:3px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
     .dot > span{position:relative;z-index:1}
     .oval:focus-visible,.dot:focus-visible,.mini-dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
     .dot[aria-pressed=true]{box-shadow:0 0 0 2px var(--card-background-color,#fff),0 0 0 4px var(--goal-focus)}
@@ -247,7 +247,7 @@
     .dot.marker-symbols > span{font-size:18px;font-weight:var(--ha-font-weight-bold,700)}
     .dot.progress,.dot.multi-current{border-width:0}
     .dot.no-data,.dot.no-goal{border:0;color:var(--goal-unavailable)}
-    .dot.no-data.marker-filled,.dot.no-goal.marker-filled{background:var(--goal-unavailable);border:4px solid var(--goal-unavailable);color:var(--goal-on-unavailable)}
+    .dot.no-data.marker-filled,.dot.no-goal.marker-filled{background:var(--goal-unavailable);border:3px solid var(--goal-unavailable);color:var(--goal-on-unavailable)}
     .dot.no-data.marker-symbols,.dot.no-goal.marker-symbols{background:transparent;border:0;color:var(--goal-unavailable)}
     .dot.future{border-color:var(--goal-unavailable);color:var(--goal-unavailable)}
     .dot.multi-current{background:transparent;border-color:transparent;color:var(--goal-muted)}
@@ -262,7 +262,7 @@
     .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;margin:0 0 var(--ha-space-2,8px);cursor:pointer}
     .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-1,4px) 2px;place-items:center}
     .mini-dot{position:relative;width:12px;height:12px;border:0;background:transparent;padding:0;border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box;cursor:pointer}
-    .mini-dot::after{content:"";position:absolute;inset:0;border:2px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
+    .mini-dot::after{content:"";position:absolute;inset:0;border:1.5px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
     .mini-dot.met::after{background:var(--goal-success);border-color:var(--goal-success)}
     .mini-dot.missed::after{border-color:var(--goal-error);background:var(--goal-error)}
     .mini-dot.met.marker-outline::after{background:transparent;border-color:var(--goal-success)}
@@ -307,7 +307,7 @@
     constructor(){
       super();this.attachShadow({mode:'open'});
       this._config=null;this._hass=null;this._period=null;this._signature='';this._selected=null;this._selectedMonth=null;
-      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._lastDataRequest='';this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._connected=false;
+      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._lastDataRequest='';this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._restartOnConnect=false;
       this.shadowRoot.innerHTML=`<style>${css}</style><ha-card><div id="content"></div></ha-card>`;
       this.shadowRoot.addEventListener('click', (e)=>{
         const btn=e.target.closest('[data-day],[data-month],[data-toggle-entity],[data-more-info]');if(!btn)return;
@@ -355,11 +355,8 @@
       if(localeChanged||measurementChanged||goal?.last_updated!==priorGoal?.last_updated){this._mergeCurrentDay();this._render()}
     }
     connectedCallback(){
-      this._connected=true;
-      // Dashboard layouts may configure a card before attaching it, or move it
-      // between columns while a request is active. Always start a fresh load
-      // once the final card instance is connected.
-      this._syncPeriod(true);
+      const restart=this._restartOnConnect;this._restartOnConnect=false;
+      this._syncPeriod(restart);
       this._observeSize();
       this._timer=setInterval(()=>{
         this._syncPeriod();
@@ -367,7 +364,7 @@
         if(now-this._clock>300000){this._clock=now;const today=dateParts(new Date(),this._tz());if(this._period?.start<=today&&this._period?.end>=today)this._load();else {this._mergeCurrentDay();this._render();}}
       },1100);
     }
-    disconnectedCallback(){this._connected=false;clearInterval(this._timer);this._timer=null;this._fetchId++;this._loading=false;this._resizeObserver?.disconnect();this._resizeObserver=null}
+    disconnectedCallback(){this._restartOnConnect=this._restartOnConnect||this._loading;clearInterval(this._timer);this._timer=null;this._fetchId++;this._loading=false;this._resizeObserver?.disconnect();this._resizeObserver=null}
     getCardSize(){
       const height=this.shadowRoot?.querySelector?.('ha-card')?.offsetHeight;
       return height?Math.max(1,Math.ceil(height/50)):5;
@@ -397,7 +394,7 @@
       const a=dateParts(from,tz),b=dateParts(to,tz),signature=`${a}/${b}/${tz}`;
       if(!force && signature===this._signature)return;
       this._signature=signature;this._period={start:a,end:b};this._selected=null;this._selectedMonth=null;
-      if(this._connected)this._load();
+      this._load();
     }
     async _load(){
       const seq=++this._fetchId, period=this._period, hass=this._hass, config=this._config;
@@ -555,7 +552,7 @@
       });
     }
     _stackedRing(row,mini=false){
-      const size=mini?12:32,center=size/2,radius=mini?5:14,stroke=mini?2:4;
+      const size=mini?12:32,center=size/2,radius=mini?5.25:14.5,stroke=mini?1.5:3;
       const segments=this._seriesSegments(row).filter(segment=>segment.length>0);
       const values=segments.map(segment=>`<circle class="series-value${segment.hidden?' hidden':''}" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${segment.length.toFixed(3)} ${(100-segment.length).toFixed(3)}" stroke-dashoffset="${(-segment.offset).toFixed(3)}" transform="rotate(-90 ${center} ${center})" style="stroke:${segment.color}"/>`).join('');
       const total=segments.length?segments.at(-1).offset+segments.at(-1).length:0;
@@ -564,17 +561,17 @@
     }
     _stackedPath(row,path){
       const segments=this._seriesSegments(row).filter(segment=>segment.length>0);
-      const values=segments.map(segment=>`<path class="series-value${segment.hidden?' hidden':''}" d="${path}" pathLength="100" stroke-width="12" fill="none" stroke-dasharray="${segment.length.toFixed(3)} ${(100-segment.length).toFixed(3)}" stroke-dashoffset="${(-segment.offset).toFixed(3)}" style="stroke:${segment.color}"/>`).join('');
+      const values=segments.map(segment=>`<path class="series-value${segment.hidden?' hidden':''}" d="${path}" pathLength="100" stroke-width="10" fill="none" stroke-dasharray="${segment.length.toFixed(3)} ${(100-segment.length).toFixed(3)}" stroke-dashoffset="${(-segment.offset).toFixed(3)}" style="stroke:${segment.color}"/>`).join('');
       const total=segments.length?segments.at(-1).offset+segments.at(-1).length:0;
-      const caps=segments.length&&total<99.999?[[segments[0],0],[segments.at(-1),total]].map(([segment,offset])=>`<path class="series-cap${segment.hidden?' hidden':''}" d="${path}" pathLength="100" stroke-width="12" fill="none" stroke-dasharray="0 100" stroke-dashoffset="${(-offset).toFixed(3)}" style="stroke:${segment.color}"/>`).join(''):'';
+      const caps=segments.length&&total<99.999?[[segments[0],0],[segments.at(-1),total]].map(([segment,offset])=>`<path class="series-cap${segment.hidden?' hidden':''}" d="${path}" pathLength="100" stroke-width="10" fill="none" stroke-dasharray="0 100" stroke-dashoffset="${(-offset).toFixed(3)}" style="stroke:${segment.color}"/>`).join(''):'';
       return values+caps;
     }
     _progressRing(pct,mini=false){
-      const size=mini?12:32,center=size/2,radius=mini?5:14,stroke=mini?2:4;
+      const size=mini?12:32,center=size/2,radius=mini?5.25:14.5,stroke=mini?1.5:3;
       return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" cx="${center}" cy="${center}" r="${radius}" stroke-width="${stroke}"/><circle class="value" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${pct} 100" transform="rotate(-90 ${center} ${center})"/></svg>`;
     }
     _unavailableRing(mini=false){
-      const size=mini?12:32,center=size/2,radius=mini?5:14,stroke=mini?2:4,pathLength=mini?15:21;
+      const size=mini?12:32,center=size/2,radius=mini?5.25:14.5,stroke=mini?1.5:3,pathLength=mini?15:21;
       return `<svg class="unavailable-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${center}" cy="${center}" r="${radius}" pathLength="${pathLength}" stroke-width="${stroke}" stroke-dasharray="1 2" transform="rotate(-90 ${center} ${center})"/></svg>`;
     }
     _renderDot(row,mini=false){
@@ -623,8 +620,8 @@
       const path='M 125 8 H 200 A 42 42 0 0 1 242 50 A 42 42 0 0 1 200 92 H 50 A 42 42 0 0 1 8 50 A 42 42 0 0 1 50 8 H 125';
       const label=`${this._formatDate(row.key)}: ${this._label(row)}. ${this._format(row.value)} ${unit}. ${this._t('goalAria',{value:this._format(row.goal),unit})}`;
       const active=this._selected===row.key,multiCurrent=this._isMultiCurrent(row);
-      const valuePath=multiCurrent?this._stackedPath(row,path):`<path class="value" d="${path}" pathLength="100" stroke-width="12" fill="none" stroke-dasharray="${pct} 100"/>`;
-      return `<div class="fill"><button type="button" class="oval ${row.status}${multiCurrent?' multi-current':''}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(label)}"><svg viewBox="0 0 250 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="12" fill="none"/>${valuePath}</svg><span class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span></button>${this._selectionDetail()}</div>`;
+      const valuePath=multiCurrent?this._stackedPath(row,path):`<path class="value" d="${path}" pathLength="100" stroke-width="10" fill="none" stroke-dasharray="${pct} 100"/>`;
+      return `<div class="fill"><button type="button" class="oval ${row.status}${multiCurrent?' multi-current':''}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(label)}"><svg viewBox="0 0 250 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="10" fill="none"/>${valuePath}</svg><span class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span></button>${this._selectionDetail()}</div>`;
     }
     _selectionDetail(){
       const row=this._days.find(d=>d.key===this._selected);
