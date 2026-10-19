@@ -35,7 +35,7 @@ If the button does not work, add https://github.com/gabbro246/daily-goals-card t
 
 ## Set up a daily goal
 
-Add the card through Home Assistant's dashboard editor. Select the entity to measure, enter a fixed daily goal or choose an entity containing the goal, and decide how the daily value should be calculated.
+Add the card through Home Assistant's dashboard editor. Select one or more entities to measure, enter a fixed daily goal or choose an entity containing the goal, and decide how the daily value should be calculated.
 
 For example, this tracks a step counter that resets each day:
 
@@ -43,7 +43,8 @@ For example, this tracks a step counter that resets each day:
 - type: energy-date-selection
 - type: custom:daily-goals-card
   title: Daily steps
-  entity: sensor.daily_steps
+  entities:
+    - sensor.daily_steps
   goal: 6000
   direction: min
   aggregation: max
@@ -59,6 +60,23 @@ Choose the daily calculation that matches your entity:
 - `mean` for the daily average.
 - `min` for the lowest value of each day.
 
+### Combine multiple measurements
+
+Select multiple entities when several measurements contribute to the same goal:
+
+```yaml
+- type: custom:daily-goals-card
+  title: Household steps
+  entities:
+    - sensor.alex_daily_steps
+    - sensor.sam_daily_steps
+  goal: 10000
+  direction: min
+  aggregation: max
+```
+
+The card adds their daily values together. For today, each entity has its own color and can be shown or hidden from the legend. Finished days show only whether the combined goal was met. Use entities with the same unit and daily calculation.
+
 ### Use a changing goal
 
 Select a goal entity instead of entering a fixed number when your target can change:
@@ -67,7 +85,8 @@ Select a goal entity instead of entering a fixed number when your target can cha
 - type: energy-date-selection
   collection_key: energy_goals
 - type: custom:daily-goals-card
-  entity: sensor.daily_steps
+  entities:
+    - sensor.daily_steps
   goal_entity: input_number.daily_steps_goal
   direction: min
   aggregation: max

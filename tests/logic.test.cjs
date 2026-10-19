@@ -67,6 +67,11 @@ test('energy collection key matches HA connection property',()=>{
  assert.equal(L.relevantEnergyCollection({connection:{_energy_custom:collection},panelUrl:'lovelace'},'energy_custom'),collection);
 });
 
+test('measurement entities support legacy cards and prefer plural config',()=>{
+ assert.equal(Array.from(L.measurementEntities({entity:'sensor.one'})).join(','),'sensor.one');
+ assert.equal(Array.from(L.measurementEntities({entity:'sensor.one',entities:['sensor.two','sensor.two']})).join(','),'sensor.two');
+});
+
 test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  const Card=elements.get('daily-goals-card');
  const card=new Card();
@@ -76,9 +81,55 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  card._config={entity:'sensor.steps',goal:100};
  card._hass={locale:{language:'en'},states:{'sensor.steps':{attributes:{unit_of_measurement:'steps'}}}};
  const day=card._dayView({key:'2026-10-19',value:25,goal:100,status:'progress'});
- assert.match(day,/viewBox="0 0 200 100"/);
- assert.match(day,/d="M 100 8 H 150 A 42 42/);
+ assert.match(day,/viewBox="0 0 250 100"/);
+ assert.match(day,/d="M 125 8 H 200 A 42 42/);
  assert.match(day,/stroke-dasharray="25 100"/);
+});
+test('multiple measurement entities are summed only when all have data',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ card._config={entities:['sensor.one','sensor.two'],goal:100,direction:'min'};
+ card._hass={config:{time_zone:'UTC'},states:{}};
+ card._period={start:'2020-01-01',end:'2020-01-02'};
+ card._days=[{key:'2020-01-01'},{key:'2020-01-02'}];
+ card._metrics=new Map([
+  ['sensor.one',new Map([['2020-01-01',30],['2020-01-02',40]])],
+  ['sensor.two',new Map([['2020-01-01',70]])],
+ ]);
+ card._rebuildDays();
+ assert.equal(card._days[0].value,100);
+ assert.equal(card._days[0].status,'met');
+ assert.equal(card._days[0].parts.map(part=>part.value).join(','),'30,70');
+ assert.equal(card._days[1].value,null);
+ assert.equal(card._days[1].status,'no-data');
+});
+test('current day uses stacked entity colors and a toggleable graph legend',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ const today=L.dateParts(new Date(),'UTC');
+ card._config={entities:['sensor.one','sensor.two'],goal:100};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{
+  'sensor.one':{attributes:{friendly_name:'First counter',unit_of_measurement:'steps'}},
+  'sensor.two':{attributes:{friendly_name:'Second counter',unit_of_measurement:'steps'}},
+ }};
+ const row={key:today,value:50,goal:100,status:'progress',parts:[{entity:'sensor.one',value:30},{entity:'sensor.two',value:20}]};
+ card._days=[row];
+ const day=card._dayView(row);
+ assert.match(day,/class="oval progress multi-current"/);
+ assert.equal((day.match(/class="series-value/g)||[]).length,2);
+ assert.match(day,/stroke-dasharray="30\.000 70\.000"/);
+ assert.match(day,/stroke-dasharray="20\.000 80\.000"/);
+ assert.match(day,/stroke-dashoffset="-30\.000"/);
+ assert.match(card._renderDot(row),/class="dot progress multi-current"/);
+ const legend=card._seriesLegend();
+ assert.match(legend,/First counter/);
+ assert.match(legend,/30 steps/);
+ assert.match(legend,/data-toggle-entity="sensor.two"/);
+ card.shadowRoot.listeners.click({target:{closest:()=>({dataset:{toggleEntity:'sensor.two'}})}});
+ assert.equal(card._hiddenEntities.has('sensor.two'),true);
+ assert.match(card._seriesLegend(),/<li class="hidden"[^>]*>.*data-toggle-entity="sensor.two"/);
+ const finished={...row,key:'2020-01-01',status:'met'};
+ assert.doesNotMatch(card._renderDot(finished),/series-value/);
 });
 test('every day view exposes toggleable day selection',()=>{
  const Card=elements.get('daily-goals-card');

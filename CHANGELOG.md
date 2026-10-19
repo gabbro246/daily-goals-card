@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.0
+- Added combined goals for multiple measurement entities.
+- Added colored current-day progress with a graph-style legend.
+- Made the daily progress shape wider.
+
 ## 0.1.3
 - Added a native-style entity icon beside the card title.
 - Made day details available in day, week, month, and year views.
