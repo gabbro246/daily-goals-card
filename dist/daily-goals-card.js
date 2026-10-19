@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.1.1';
+  const VERSION = '0.1.2';
   const DAY_MS = 86400000;
   const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
   const numeric = (value) => {
@@ -128,31 +128,41 @@
     return null;
   };
   const css = `
-    :host { display:block; --goal-color:var(--primary-color,#03a9f4); --goal-success:var(--success-color,#43a047); --goal-track:var(--divider-color,rgba(120,120,120,.20)); --goal-muted:var(--secondary-text-color,#777); --goal-error:var(--error-color,#db4437); --goal-ink:var(--primary-text-color,#212121) }
-    ha-card { overflow:hidden; color:var(--goal-ink) }
-    .header{padding:16px 16px 0;min-width:0}
-    .name{font-size:var(--ha-font-size-l,18px);font-weight:var(--ha-font-weight-medium,500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .subtitle{font-size:var(--ha-font-size-s,12px);color:var(--goal-muted);margin-top:3px}
-    .body{padding:20px 16px 16px;min-width:0}
+    :host {
+      display:block;
+      --goal-color:var(--ha-color-fill-primary-loud-resting,var(--primary-color,#03a9f4));
+      --goal-success:var(--ha-color-fill-success-loud-resting,var(--success-color,#43a047));
+      --goal-error:var(--ha-color-border-danger-loud,var(--error-color,#db4437));
+      --goal-track:var(--ha-color-border-neutral-quiet,var(--divider-color,rgba(120,120,120,.20)));
+      --goal-muted:var(--ha-color-text-secondary,var(--secondary-text-color,#777));
+      --goal-ink:var(--ha-color-text-primary,var(--primary-text-color,#212121));
+      --goal-on-success:var(--ha-color-on-success-loud,var(--text-primary-color,#fff));
+      --goal-focus:var(--ha-color-focus,var(--primary-color,#03a9f4));
+    }
+    ha-card{overflow:hidden;color:var(--goal-ink)}
+    .header{padding:10px 10px 0;min-width:0}
+    .name{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .subtitle{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .body{padding:var(--ha-space-3,12px) 10px 10px;min-width:0}
     .fill{width:100%;max-width:500px;margin:0 auto}
-    .oval{width:100%;height:136px;position:relative;display:grid;place-items:center;color:var(--goal-color)}
+    .oval{width:min(100%,360px);aspect-ratio:2 / 1;margin:0 auto;position:relative;display:grid;place-items:center;color:var(--goal-color)}
     .oval.met{color:var(--goal-success)}
     .oval.missed{color:var(--goal-error)}
     .oval.no-data,.oval.no-goal,.oval.future{color:var(--goal-track)}
     .oval svg{width:100%;height:100%;position:absolute;inset:0;overflow:visible}
     .oval .track{stroke:var(--goal-track)}
     .oval .value{stroke:currentColor;stroke-linecap:round}
-    .oval-text{display:flex;align-items:baseline;position:relative;z-index:1;gap:6px}
-    .oval-text .measurement{font-size:clamp(28px,7vw,40px);line-height:1.2;font-weight:500;letter-spacing:-.04em}
-    .oval-text .unit{font-size:var(--ha-font-size-m,14px);color:var(--goal-muted)}
-    .strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px 3px;place-items:center;max-width:500px;margin:0 auto;width:100%}
-    .cell{display:flex;flex-direction:column;align-items:center;gap:7px;min-width:0}
-    .cell > span{font-size:var(--ha-font-size-xs,11px);color:var(--goal-muted)}
-    .dot{border:2px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:50%;display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer}
+    .oval-text{display:flex;align-items:baseline;position:relative;z-index:1;gap:var(--ha-space-1,4px)}
+    .oval-text .measurement{font-size:var(--ha-font-size-3xl,28px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:0}
+    .oval-text .unit{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);color:var(--goal-muted)}
+    .strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;place-items:center;max-width:500px;margin:0 auto;width:100%}
+    .cell{display:flex;flex-direction:column;align-items:center;gap:var(--ha-space-2,8px);min-width:0}
+    .cell > span,.weekday{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted)}
+    .dot{border:2px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
     .dot > span{position:relative;z-index:1}
-    .dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-color);outline-offset:2px}
-    .dot[aria-pressed=true]{outline:2px solid var(--goal-color);outline-offset:3px}
-    .dot.met{background:var(--goal-success);border-color:var(--goal-success);color:var(--text-primary-color,#fff)}
+    .dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
+    .dot[aria-pressed=true]{outline:2px solid var(--goal-focus);outline-offset:3px}
+    .dot.met{background:var(--goal-success);border-color:var(--goal-success);color:var(--goal-on-success)}
     .dot.missed{border-color:var(--goal-error);color:var(--goal-error)}
     .dot.progress{border-color:transparent}
     .dot.no-data,.dot.no-goal{border-style:dashed}
@@ -160,32 +170,31 @@
     .progress-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
     .progress-ring .track{fill:none;stroke:var(--goal-track)}
     .progress-ring .value{fill:none;stroke:var(--goal-color);stroke-linecap:round}
-    .month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px 3px;align-items:center;justify-items:center;max-width:430px;margin:0 auto;width:100%}
-    .weekday{color:var(--goal-muted);font-size:11px}
-    .month-grid .dot{width:clamp(27px,7vw,34px);height:clamp(27px,7vw,34px)}
-    .month-collection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 10px;width:100%}
-    .mini-month{padding:2px;min-width:0}
-    .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;color:inherit;font-size:var(--ha-font-size-xs,11px);margin:0 0 8px;cursor:pointer;font-weight:500}
-    .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px 2px;place-items:center}
-    .mini-dot{position:relative;width:7px;height:7px;border:1px solid var(--goal-track);border-radius:50%;box-sizing:border-box}
+    .month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;align-items:center;justify-items:center;max-width:430px;margin:0 auto;width:100%}
+    .month-grid .dot{width:clamp(28px,7vw,32px);height:clamp(28px,7vw,32px)}
+    .month-collection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px);width:100%}
+    .mini-month{padding:0;min-width:0}
+    .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;color:var(--goal-ink);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.1px;margin:0 0 var(--ha-space-2,8px);cursor:pointer}
+    .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-1,4px) 2px;place-items:center}
+    .mini-dot{position:relative;width:7px;height:7px;border:1px solid var(--goal-track);border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box}
     .mini-dot.met{background:var(--goal-success);border-color:var(--goal-success)}
-    .mini-dot.missed{border-color:var(--goal-error);background:var(--goal-error);opacity:.45}
+    .mini-dot.missed{border-color:var(--goal-error);background:transparent}
     .mini-dot.progress{border:0}
     .mini-dot.no-data,.mini-dot.no-goal{border-style:dashed}
     .mini-dot.future{opacity:.2}
-    .many-months{max-height:320px;overflow:auto;width:100%;padding:2px 0;box-sizing:border-box}
+    .many-months{max-height:320px;overflow:auto;width:100%;padding:0;box-sizing:border-box}
     .many-months.year{max-height:none;overflow:visible}
-    .many-months.year .month-collection{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 8px}
+    .many-months.year .month-collection{grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px)}
     .many-months.year .mini-grid{gap:3px 1px}
     .many-months.year .mini-dot{width:6px;height:6px}
-    .drillback{display:flex;align-items:center;border:0;background:transparent;color:var(--primary-color,#03a9f4);padding:0 0 14px;cursor:pointer;font:inherit;font-size:13px}
-    .detail,.summary{text-align:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1.4}
-    .detail{margin-top:14px}
-    .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:500}
-    .summary{margin-top:16px}
-    .muted{color:var(--goal-muted);text-align:center}
-    .error{color:var(--goal-error);font-size:13px;text-align:center;line-height:1.5;padding:18px}
-    @media(max-width:340px){.header{padding:12px 12px 0}.body{padding:16px 12px 12px}.month-collection{gap:12px 5px}.mini-grid{gap:3px 1px}.mini-dot{width:6px;height:6px}.strip .dot{width:27px;height:27px}}
+    .drillback{display:flex;align-items:center;border:0;background:transparent;color:var(--goal-color);padding:0 0 var(--ha-space-3,12px);cursor:pointer;font:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-condensed,1.2)}
+    .detail,.summary{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;text-align:center;color:var(--goal-muted)}
+    .detail{margin-top:var(--ha-space-3,12px)}
+    .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px}
+    .summary{margin-top:var(--ha-space-3,12px)}
+    .muted{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);text-align:center}
+    .error{color:var(--goal-error);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-normal,1.6);text-align:center;padding:var(--ha-space-4,16px)}
+    @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{gap:3px 1px}.mini-dot{width:6px;height:6px}.strip .dot{width:28px;height:28px}}
   `;
 
   class DailyGoalsCard extends HTMLElement {
@@ -239,7 +248,7 @@
     getCardSize(){return 5}
     getGridOptions(){
       const kind=this._days?.length?getLayout(this._days.map(d=>d.key)):'day';
-      const rows=kind==='day'||kind==='week'?4:kind==='month'?6:7;
+      const rows=kind==='day'?5:kind==='week'?4:kind==='month'?6:7;
       return {columns:12,rows,min_columns:9,min_rows:4};
     }
     _tz(){return this._hass?.config?.time_zone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}
@@ -355,7 +364,7 @@
       return Math.max(0,Math.min(100,100*row.value/row.goal));
     }
     _progressRing(pct,mini=false){
-      const size=mini?16:32,center=size/2,radius=mini?6.5:14,stroke=mini?2:2;
+      const size=mini?16:32,center=size/2,radius=mini?7:15,stroke=2;
       return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" cx="${center}" cy="${center}" r="${radius}" stroke-width="${stroke}"/><circle class="value" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${pct} 100" transform="rotate(-90 ${center} ${center})"/></svg>`;
     }
     _renderDot(row,mini=false){
@@ -397,9 +406,9 @@
     }
     _dayView(row){
       const unit=unitLabel(this._config,this._hass),pct=this._progress(row);
-      const path='M 190 12 H 307 A 61 60.5 0 0 1 368 72.5 A 61 60.5 0 0 1 307 133 H 73 A 61 60.5 0 0 1 12 72.5 A 61 60.5 0 0 1 73 12 H 190';
+      const path='M 100 8 A 92 42 0 0 1 192 50 A 92 42 0 0 1 100 92 A 92 42 0 0 1 8 50 A 92 42 0 0 1 100 8';
       const label=`${this._formatDate(row.key)}: ${this._label(row)}. ${this._format(row.value)} ${unit}. ${this._format(row.goal)} ${unit} goal.`;
-      return `<div class="fill"><div class="oval ${row.status}" role="img" aria-label="${escapeHTML(label)}"><svg viewBox="0 0 380 145" preserveAspectRatio="none" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="9" fill="none"/><path class="value" d="${path}" pathLength="100" stroke-width="9" fill="none" stroke-dasharray="${pct} 100"/></svg><div class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></div></div></div>`;
+      return `<div class="fill"><div class="oval ${row.status}" role="img" aria-label="${escapeHTML(label)}"><svg viewBox="0 0 200 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="8" fill="none"/><path class="value" d="${path}" pathLength="100" stroke-width="8" fill="none" stroke-dasharray="${pct} 100"/></svg><div class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></div></div></div>`;
     }
     _selectionDetail(){
       const row=this._days.find(d=>d.key===this._selected);
@@ -413,6 +422,12 @@
     _monthView(){
       const [year,month]=this._days[0].key.split('-').map(Number);
       return `<div class="fill">${this._monthGrid(year,month)}${this._selectionDetail()}</div>`;
+    }
+    _summaryText(){
+      const today=dateParts(new Date(),this._tz());
+      const evaluated=this._days.filter(row=>row.key<=today&&['met','missed','progress'].includes(row.status));
+      const met=evaluated.filter(row=>row.status==='met').length;
+      return `${met} of ${evaluated.length} ${evaluated.length===1?'day':'days'} met`;
     }
     _render(){
       if(!this._config||!this._hass)return;
@@ -430,11 +445,7 @@
       else if(kind==='week')stage=this._weekView();
       else if(kind==='month')stage=this._monthView();
       else stage=this._miniMonths();
-      const today=dateParts(new Date(),this._tz());
-      const finalized=rows.filter(r=>r.key<today&&(r.status==='met'||r.status==='missed'));
-      const met=finalized.filter(r=>r.status==='met').length;
-      const summary=!this._loading&&!this._error&&kind!=='day'&&finalized.length
-        ?`<div class="summary">${met} of ${finalized.length} days met</div>`:'';
+      const summary=!this._loading&&!this._error?`<div class="summary">${this._summaryText()}</div>`:'';
       root.innerHTML=`<div class="header"><div class="name">${escapeHTML(title)}</div><div class="subtitle">Goal: ${escapeHTML(rule)}</div></div><div class="body">${stage}${summary}</div>`;
     }
   }

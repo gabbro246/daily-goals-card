@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+- Kept the daily progress oval correctly proportioned at every card size.
+- Added goal summaries to the day and week views.
+- Matched Home Assistant typography, spacing, colors, and progress lines more closely.
+
 ## 0.1.1
 - Simplified the card so goals are easier to read at a glance.
 - Fixed progress lines so they begin at the top and move clockwise.

@@ -76,6 +76,21 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  card._config={entity:'sensor.steps',goal:100};
  card._hass={locale:{language:'en'},states:{'sensor.steps':{attributes:{unit_of_measurement:'steps'}}}};
  const day=card._dayView({key:'2026-10-19',value:25,goal:100,status:'progress'});
- assert.match(day,/d="M 190 12 H 307/);
+ assert.match(day,/viewBox="0 0 200 100"/);
+ assert.match(day,/d="M 100 8 A 92 42/);
  assert.match(day,/stroke-dasharray="25 100"/);
+});
+test('goal summary is present for single-day and multi-day ranges',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ card._hass={config:{time_zone:'UTC'}};
+ card._days=[{key:'2020-01-01',status:'met'}];
+ assert.equal(card._summaryText(),'1 of 1 day met');
+ card._days=[
+  {key:'2020-01-01',status:'met'},
+  {key:'2020-01-02',status:'missed'},
+  {key:'2020-01-03',status:'progress'},
+  {key:'2999-01-01',status:'future'},
+ ];
+ assert.equal(card._summaryText(),'1 of 3 days met');
 });
