@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.0
+- Selected-day details now explain how values were calculated and appear inside the single-day progress oval.
+- Range summaries now show the daily goal in plain language.
+- Multi-sensor progress bars now have rounded outer ends and clean, straight joins between values.
+- Appearance and goal changes now update without unnecessary history reloads or clearing your selection.
+- Long date ranges and calendar views now display more efficiently and consistently.
+
 ## 0.4.2
 - Restored cards that disappeared after updating to 0.4.1.
 - Made interrupted history loading restart correctly in Sidebar views.

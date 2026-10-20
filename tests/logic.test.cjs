@@ -23,7 +23,10 @@ test('aggregation choices use native secondary descriptions',()=>{
   assert.match(option.description,/Choose this /);
   assert.doesNotMatch(option.label,/\(/);
  }
- assert.match(source,/name:'aggregation',selector:\{select:\{mode:'box',box_max_columns:1,options:AGGREGATION_OPTIONS\}\}/);
+ const aggregation=L.localizedFormSchema('en').find(field=>field.name==='aggregation').selector.select;
+ assert.equal(aggregation.mode,'box');
+ assert.equal(aggregation.box_max_columns,1);
+ assert.equal(aggregation.options.length,5);
 });
 test('day range and leap-year months',()=>{
  assert.equal(L.keyPlus('2026-10-31',1),'2026-11-01');
@@ -37,7 +40,8 @@ test('day range and leap-year months',()=>{
  assert.equal(L.weekdayLabels('en',true)[0],'Sun');
  assert.equal(L.weekStartsSunday({}),false);
  assert.equal(L.weekStartsSunday({start_week_on_sunday:true}),true);
- assert.match(source,/name:'start_week_on_sunday',selector:\{boolean:\{\}\}/);
+ const weekStart=L.localizedFormSchema('en').find(field=>field.name==='start_week_on_sunday');
+ assert.equal(typeof weekStart.selector.boolean,'object');
 });
 test('time zone boundaries handle daylight saving',()=>{
  assert.equal(L.zonedMidnight('2026-03-29','Europe/Vienna').toISOString(),'2026-03-28T23:00:00.000Z');
@@ -124,7 +128,8 @@ test('legend visibility is controlled by one boolean setting',()=>{
  assert.equal(L.shouldShowLegend({entities:['sensor.one','sensor.two']}),false);
  assert.equal(L.shouldShowLegend({entities:['sensor.one'],show_legend:true}),true);
  assert.equal(L.shouldShowLegend({entities:['sensor.one','sensor.two'],show_legend:false}),false);
- assert.match(source,/name:'show_legend',selector:\{boolean:\{\}\}/);
+ const legend=L.localizedFormSchema('en').find(field=>field.name==='show_legend');
+ assert.equal(typeof legend.selector.boolean,'object');
 });
 test('day states have independent filled, outlined, and symbol styles',()=>{
  const Card=elements.get('daily-goals-card');
@@ -147,8 +152,13 @@ test('day states have independent filled, outlined, and symbol styles',()=>{
  assert.equal(L.markerStyle({no_data_style:'filled'},'no-data'),'filled');
  assert.equal(L.markerStyle({no_data_style:'filled'},'no-goal'),'filled');
  assert.equal(L.STYLE_ROWS.length,3);
- assert.match(source,/className='style-grid'/);
- assert.match(source,/type="radio" name="\$\{row\.name\}"/);
+ const Editor=elements.get('daily-goals-card-editor');
+ const editor=new Editor();
+ editor.setConfig({entity:'sensor.steps',goal:100});
+ assert.equal(editor._styles.className,'style-grid');
+ assert.match(editor._styles.innerHTML,/type="radio" name="success_style"/);
+ assert.match(editor._styles.innerHTML,/type="radio" name="failure_style"/);
+ assert.match(editor._styles.innerHTML,/type="radio" name="no_data_style"/);
  const card=new Card();
  card._config={entity:'sensor.steps',goal:100};
  card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
@@ -200,15 +210,17 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
 test('status colors, sizes, and outlines are consistent within each visual scale',()=>{
  assert.match(source,/\.series-value\{fill:none;stroke-linecap:butt/);
  assert.match(source,/\.series-cap\{fill:none;stroke-linecap:round/);
- assert.match(source,/\.weekday,.month-button\{font-size:var\(--ha-font-size-s,12px\);font-weight:var\(--ha-font-weight-normal,400\)[^\n]+color:var\(--goal-muted\)\}/);
+ assert.match(source,/\.subtitle,.weekday,.month-button,.series-legend li,.detail\{font-size:var\(--ha-font-size-s,12px\);font-weight:var\(--ha-font-weight-normal,400\)/);
+ assert.match(source,/\.weekday,.month-button\{color:var\(--goal-muted\)\}/);
  assert.match(source,/--goal-success:var\([^\n]+#43a047/);
  assert.match(source,/--goal-error:var\([^\n]+#db4437/);
  assert.doesNotMatch(source,/goal-small-(?:met|missed)/);
  assert.match(source,/\.dot\{border:3px solid var\(--goal-track\)[^\n]+width:32px;height:32px/);
  assert.match(source,/\.mini-dot\{[^\n]+width:12px;height:12px/);
  assert.match(source,/\.mini-dot::after\{[^\n]+border:1\.5px solid var\(--goal-track\)/);
- assert.match(source,/\.mini-dot\.met::after\{background:var\(--goal-success\);border-color:var\(--goal-success\)/);
- assert.match(source,/\.mini-dot\.missed::after\{border-color:var\(--goal-error\);background:var\(--goal-error\)/);
+ assert.match(source,/\.dot\.met,.mini-dot\.met\{--marker-color:var\(--goal-success\)/);
+ assert.match(source,/\.dot\.missed,.mini-dot\.missed\{--marker-color:var\(--goal-error\)/);
+ assert.match(source,/\.dot\.met,.dot\.missed,.mini-dot\.met::after,.mini-dot\.missed::after\{background:var\(--marker-color\);border-color:var\(--marker-color\)/);
  assert.match(source,/\.dot\.progress,.dot\.multi-current\{border-width:0\}/);
  assert.match(source,/\.unavailable-ring circle\{fill:none;stroke:var\(--goal-unavailable\);stroke-linecap:round\}/);
  assert.match(source,/\.dot\.future\{border-color:var\(--goal-unavailable\);color:var\(--goal-unavailable\)\}/);
@@ -255,12 +267,17 @@ test('current day uses stacked entity colors and a toggleable graph legend',()=>
  assert.equal((day.match(/class="series-value/g)||[]).length,2);
  assert.equal((day.match(/class="series-cap/g)||[]).length,2);
  assert.match(day,/class="series-value[^"]*"[^>]+stroke-width="10"/);
+ assert.equal((day.match(/class="series-value"[^>]+stroke-linecap="butt"/g)||[]).length,2);
+ assert.equal((day.match(/class="series-cap"[^>]+stroke-linecap="round"/g)||[]).length,2);
  assert.match(day,/stroke-dasharray="0 100"/);
  assert.match(day,/stroke-dasharray="30\.000 70\.000"/);
  assert.match(day,/stroke-dasharray="20\.000 80\.000"/);
  assert.match(day,/stroke-dashoffset="-30\.000"/);
- assert.match(card._renderDot(row),/class="dot progress multi-current"/);
- assert.match(card._renderDot(row),/stroke-width="3"/);
+ const dot=card._renderDot(row);
+ assert.match(dot,/class="dot progress multi-current"/);
+ assert.match(dot,/stroke-width="3"/);
+ assert.equal((dot.match(/class="series-value"[^>]+stroke-linecap="butt"/g)||[]).length,2);
+ assert.equal((dot.match(/class="series-cap"[^>]+stroke-linecap="round"/g)||[]).length,2);
  const legend=card._seriesLegend();
  assert.match(legend,/First counter/);
  assert.match(legend,/30 steps/);
@@ -349,10 +366,14 @@ test('every day view exposes toggleable day selection',()=>{
  assert.match(card._dayView(row),/class="oval progress" data-day="2026-10-19" aria-pressed="false"/);
  assert.match(card._renderDot(row,true),/class="mini-dot progress" data-day="2026-10-19" aria-pressed="false"/);
  card._selected=row.key;
- assert.match(card._dayView(row),/aria-pressed="true"/);
- assert.match(card._dayView(row),/class="detail"/);
- assert.match(card._dayView(row),/25% of goal/);
- assert.doesNotMatch(card._dayView(row),/In progress<\/div>/);
+ const selectedDay=card._dayView(row);
+ assert.match(selectedDay,/aria-pressed="true"/);
+ assert.match(selectedDay,/class="detail oval-detail"/);
+ assert.match(selectedDay,/Highest 25 steps/);
+ assert.match(selectedDay,/25% of goal/);
+ assert.match(selectedDay,/class="detail oval-detail"[\s\S]*<\/button><\/div>$/);
+ assert.doesNotMatch(selectedDay,/In progress<\/div>/);
+ assert.match(card._weekView(),/<\/div><span class="detail">/);
  assert.match(card._renderDot(row,true),/aria-pressed="true"/);
  const click={target:{closest:()=>({dataset:{day:row.key}})}};
  card.shadowRoot.listeners.click(click);
@@ -378,7 +399,26 @@ test('card state uses remaining amount for a day and completion count for ranges
   {key:'2020-01-03',status:'progress'},
   {key:'2999-01-01',status:'future'},
  ];
- assert.equal(card._stateText('week'),'1 of 3 days met');
+ assert.equal(card._stateText('week'),'1 of 3 days met · Goal: 100 steps or less');
+});
+test('selected-day details identify every aggregation and summaries show changing goals',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ card._selected='2020-01-01';
+ card._days=[{key:'2020-01-01',value:10,goal:20,status:'missed'}];
+ const labels={max:'Highest',change:'Total change',state:'Last value',mean:'Average',min:'Lowest'};
+ for(const [aggregation,label] of Object.entries(labels)){
+  card._config={aggregation,goal:20,direction:'min',unit:'ms'};
+  assert.match(card._selectionDetail(),new RegExp(`<strong>${label} 10 ms<\\/strong>`));
+ }
+ card._days=[
+  {key:'2020-01-01',value:10,goal:20,status:'missed'},
+  {key:'2020-01-02',value:30,goal:25,status:'met'},
+ ];
+ assert.equal(card._summaryText(),'1 of 2 days met · Daily goals: 20–25 ms or more');
+ card._config.direction='max';
+ assert.equal(card._summaryText(),'1 of 2 days met · Daily goals: 20–25 ms or less');
 });
 test('German translations cover the card and visual editor',()=>{
  assert.equal(L.translate('de-DE','goalMet'),'Ziel erreicht');
@@ -407,8 +447,11 @@ test('German translations cover the card and visual editor',()=>{
  assert.equal(card._label(card._days[1]),'Ziel erreicht');
  assert.equal(card._stateText('day'),'Noch 75 Schritte');
  assert.equal(card._percentageText(card._days[0]),'25 % des Ziels');
- assert.equal(card._stateText('week'),'1 von 2 Tagen erreicht');
+ assert.equal(card._stateText('week'),'1 von 2 Tagen erreicht · Ziel: mindestens 100 Schritte');
  card._days=[{key:L.dateParts(new Date(),'UTC'),value:50,goal:100,status:'progress',parts:[{entity:'sensor.one',value:30},{entity:'sensor.two',value:20}]}];
+ card._selected=card._days[0].key;
+ card._config.aggregation='mean';
+ assert.match(card._selectionDetail(),/Durchschnitt 50 Schritte/);
  assert.match(card._seriesLegend(),/aria-label="Messentitäten"/);
  assert.match(card._seriesLegend(),/aria-label="Ausblenden Erster Zähler"/);
 
@@ -418,4 +461,146 @@ test('German translations cover the card and visual editor',()=>{
  assert.equal(editor._form.computeLabel({name:'entities'}),'Messentitäten');
  assert.match(editor._styles.innerHTML,/Darstellung der Tagesmarkierungen/);
  assert.match(editor._styles.innerHTML,/Ausgefüllt/);
+});
+
+test('appearance changes preserve selection and an in-flight history request',async()=>{
+ const card=new (elements.get('daily-goals-card'))();
+ let requests=0,finish;
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{},callWS(){requests++;return new Promise(resolve=>{finish=resolve})}};
+ const config={entity:'sensor.steps',goal:100};
+ card.setConfig(config);
+ card._selected=card._period.start;
+ card._selectedMonth=card._period.start.slice(0,7);
+ card._hiddenEntities.add('sensor.steps');
+ const selection=card._selected,month=card._selectedMonth,fetchId=card._fetchId;
+ card.setConfig({...config,title:'Steps',icon:'mdi:walk',success_style:'symbols',failure_style:'outline',no_data_style:'filled',show_legend:true,start_week_on_sunday:true,unit:'steps',precision:2});
+ assert.equal(requests,1);
+ assert.equal(card._fetchId,fetchId);
+ assert.equal(card._loading,true);
+ assert.equal(card._selected,selection);
+ assert.equal(card._selectedMonth,month);
+ assert.equal(card._hiddenEntities.has('sensor.steps'),true);
+ finish({'sensor.steps':[{start:new Date().toISOString(),max:25}]});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(card._loading,false);
+ assert.equal(card._days[0].value,25);
+ assert.equal(card._config.title,'Steps');
+ assert.equal(card._selected,selection);
+});
+
+test('only history inputs reload while goal rules re-evaluate locally',()=>{
+ const card=new (elements.get('daily-goals-card'))();
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ let requests=0;
+ card._load=()=>{requests++};
+ card.setConfig({entity:'sensor.steps',goal:100});
+ assert.equal(requests,1);
+ card.setConfig({entities:['sensor.steps','sensor.steps'],goal:'100',aggregation:'max',direction:'min'});
+ assert.equal(requests,1);
+
+ const key='2020-01-01';
+ card._days=[{key}];
+ card._metrics=new Map([['sensor.steps',new Map([[key,150]])]]);
+ card._targets=new Map();
+ card._selected=key;
+ card._selectedMonth='2020-01';
+ card.setConfig({...card._config,goal:200});
+ assert.equal(requests,1);
+ assert.equal(card._days[0].goal,200);
+ assert.equal(card._days[0].status,'missed');
+ assert.equal(card._selected,key);
+ assert.equal(card._selectedMonth,'2020-01');
+ card.setConfig({...card._config,direction:'max'});
+ assert.equal(requests,1);
+ assert.equal(card._days[0].status,'met');
+ assert.equal(card._selected,key);
+
+ for(const change of [{entities:['sensor.other']},{aggregation:'mean'},{goal_entity:'input_number.target'},{collection_key:'energy_other'}]){
+  const before=requests;
+  card._selected=key;
+  card.setConfig({...card._config,...change});
+  assert.equal(requests,before+1,JSON.stringify(change));
+  assert.equal(card._selected,null);
+ }
+});
+
+test('unchanged Energy periods skip repeated date conversion',()=>{
+ let datePartsCalls=0;
+ const trackedIntl={
+  DateTimeFormat:function(...args){
+   const fmt=new Intl.DateTimeFormat(...args),parts=fmt.formatToParts.bind(fmt);
+   fmt.formatToParts=(date)=>{datePartsCalls++;return parts(date)};
+   return fmt;
+  },
+  NumberFormat:Intl.NumberFormat,
+ };
+ const registered=new Map();
+ vm.runInNewContext(source,{...globals,Intl:trackedIntl,window:{},customElements:{get:name=>registered.get(name),define:(name,cls)=>registered.set(name,cls)}});
+ const card=new (registered.get('daily-goals-card'))();
+ const collection={start:new Date('2026-10-01T00:00:00Z'),end:new Date('2026-10-02T00:00:00Z')};
+ card._config={entity:'sensor.steps',goal:100};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{},connection:{_energy:collection}};
+ let loads=0;
+ card._load=()=>{loads++};
+ card._syncPeriod();
+ assert.equal(loads,1);
+ assert.equal(datePartsCalls,2);
+ card._syncPeriod();
+ assert.equal(loads,1);
+ assert.equal(datePartsCalls,2);
+ collection.end=new Date('2026-10-03T00:00:00Z');
+ card._syncPeriod();
+ assert.equal(loads,2);
+ assert.equal(datePartsCalls,4);
+});
+
+test('renders reuse formatters and refresh shared values when settings change',()=>{
+ let dates=0,numbers=0,datePartsCalls=0;
+ const trackedIntl={
+  DateTimeFormat:function(...args){
+   dates++;
+   const fmt=new Intl.DateTimeFormat(...args),parts=fmt.formatToParts.bind(fmt);
+   fmt.formatToParts=(date)=>{datePartsCalls++;return parts(date)};
+   return fmt;
+  },
+  NumberFormat:function(...args){numbers++;return new Intl.NumberFormat(...args)},
+ };
+ const registered=new Map();
+ vm.runInNewContext(source,{...globals,Intl:trackedIntl,window:{},customElements:{get:name=>registered.get(name),define:(name,cls)=>registered.set(name,cls)}});
+ const card=new (registered.get('daily-goals-card'))();
+ const root={innerHTML:'',querySelector(){return null}};
+ card.shadowRoot.getElementById=()=>root;
+ card._config={entities:['sensor.one','sensor.two'],goal:100,unit:'steps',show_legend:true};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ const today=L.dateParts(new Date(),'UTC');
+ card._days=L.makeKeys(L.keyPlus(today,-30),today).map(key=>({key,value:25.5,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.one',value:20},{entity:'sensor.two',value:5.5}]}));
+ card._selected=today;
+ card._render();
+ assert.match(root.innerHTML,/25\.5 steps/);
+ assert.equal(datePartsCalls,1);
+ const first=root.innerHTML,initialDates=dates,initialNumbers=numbers;
+ card._render();
+ assert.equal(root.innerHTML,first);
+ assert.equal(dates,initialDates);
+ assert.equal(numbers,initialNumbers);
+ assert.equal(datePartsCalls,2);
+ assert.equal(card._renderContext,null);
+ card._hass.locale.language='de';
+ card._config.unit='Schritte';
+ card._render();
+ assert.match(root.innerHTML,/25,5 Schritte/);
+ card._config.precision=0;
+ assert.equal(card._format(25.5),'26');
+ card._config.entities=['sensor.one'];
+ assert.equal(card._isMultiCurrent(card._days.at(-1)),false);
+});
+
+test('status labels translate only the requested state',()=>{
+ const card=new (elements.get('daily-goals-card'))();
+ const requested=[];
+ card._t=key=>{requested.push(key);return key};
+ assert.equal(card._label({status:'missed'}),'goalMissed');
+ assert.deepEqual(requested,['goalMissed']);
+ assert.equal(card._label({status:'custom'}),'custom');
+ assert.equal(requested.length,1);
 });

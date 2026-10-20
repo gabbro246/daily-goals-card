@@ -3,9 +3,20 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.4.2';
+  const VERSION = '0.5.0';
   const DAY_MS = 86400000;
-  const VALID_AGG = new Set(['change', 'max', 'min', 'mean', 'state']);
+  const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
+  // Share formatters across cards; bound the cache when locales or options change.
+  const formatters = new Map();
+  const formatter = (type,locale,options={}) => {
+    const key=JSON.stringify([type,locale,options]);
+    if(!formatters.has(key)){
+      const value=new Intl[type](locale,options);
+      if(formatters.size>=64)formatters.delete(formatters.keys().next().value);
+      formatters.set(key,value);
+    }
+    return formatters.get(key);
+  };
   const TRANSLATIONS = {
     en: {
       rangeTooLong:'Select a range of no more than 750 days.',
@@ -16,7 +27,7 @@
       recorderError:'Could not read Recorder statistics: {error}', noSelection:'No selection', goalMet:'Goal met', goalMissed:'Goal missed', inProgress:'In progress', noData:'No data', goalUnavailable:'Goal unavailable', future:'Future',
       goalIsZero:'Goal is zero', ofLimit:'{value}% of limit', ofGoal:'{value}% of goal', futureDay:'Future day', remaining:'{amount} remaining', atLimit:'At the limit', overLimit:'{amount} over limit', left:'{amount} left', goalReached:'Goal reached', aboveGoal:'{amount} above goal',
       allMonths:'All months', selectMonth:'Select {month}', goalAria:'{value} {unit} goal.', show:'Show', hide:'Hide', measurementEntities:'Measurement entities',
-      summaryOne:'{met} of {total} day met', summaryMany:'{met} of {total} days met', loadingHistory:'Loading history…', unavailable:'Unavailable', dailyTotal:'Daily total',
+      summaryOne:'{met} of {total} day met', summaryMany:'{met} of {total} days met', goalMinimumSummary:'Goal: {amount} or more', goalMaximumSummary:'Goal: {amount} or less', dailyGoalsMinimumSummary:'Daily goals: {amount} or more', dailyGoalsMaximumSummary:'Daily goals: {amount} or less', loadingHistory:'Loading history…', unavailable:'Unavailable', dailyTotal:'Daily total',
       directionMin:'At least (minimum)', directionMax:'At most (maximum)',
       formEntities:'Measurement entities', formTitle:'Card title (optional)', formIcon:'Icon (optional)', formGoal:'Fixed daily goal (ignored when goal entity is set)', formGoalEntity:'Daily goal entity (optional)', formDirection:'Goal rule', formAggregation:'Measurement aggregation', formWeekStart:'Start week on Sunday', formLegend:'Show measurement legend', formUnit:'Unit override (optional)', formCollectionKey:'Energy date collection key (optional)',
       successfulDays:'Successful days', unsuccessfulDays:'Unsuccessful days', daysWithoutData:'Days without data', filled:'Filled', outlined:'Outlined', symbols:'Symbols', dayMarkerStyles:'Day marker styles',
@@ -26,6 +37,7 @@
       aggStateLabel:'Last value of the day', aggStateDescription:'Uses the most recently recorded value of the day and ignores earlier readings. Choose this when the end-of-day result is what matters.',
       aggMeanLabel:'Average value per day', aggMeanDescription:'Uses the average of the values recorded throughout the day. Choose this when the overall daily level matters more than a brief high or low reading.',
       aggMinLabel:'Lowest value per day', aggMinDescription:'Uses the lowest value recorded during the day. Choose this when a single low reading should determine the result for the whole day.',
+      detailMax:'Highest', detailChange:'Total change', detailState:'Last value', detailMean:'Average', detailMin:'Lowest',
     },
     de: {
       rangeTooLong:'Wähle einen Zeitraum von höchstens 750 Tagen aus.',
@@ -36,7 +48,7 @@
       recorderError:'Recorder-Statistiken konnten nicht gelesen werden: {error}', noSelection:'Keine Auswahl', goalMet:'Ziel erreicht', goalMissed:'Ziel verfehlt', inProgress:'In Bearbeitung', noData:'Keine Daten', goalUnavailable:'Ziel nicht verfügbar', future:'Zukünftig',
       goalIsZero:'Das Ziel ist null', ofLimit:'{value} % des Limits', ofGoal:'{value} % des Ziels', futureDay:'Zukünftiger Tag', remaining:'{amount} verbleibend', atLimit:'Am Limit', overLimit:'{amount} über dem Limit', left:'Noch {amount}', goalReached:'Ziel erreicht', aboveGoal:'{amount} über dem Ziel',
       allMonths:'Alle Monate', selectMonth:'{month} auswählen', goalAria:'Ziel: {value} {unit}.', show:'Einblenden', hide:'Ausblenden', measurementEntities:'Messentitäten',
-      summaryOne:'{met} von {total} Tag erreicht', summaryMany:'{met} von {total} Tagen erreicht', loadingHistory:'Verlauf wird geladen…', unavailable:'Nicht verfügbar', dailyTotal:'Tagessumme',
+      summaryOne:'{met} von {total} Tag erreicht', summaryMany:'{met} von {total} Tagen erreicht', goalMinimumSummary:'Ziel: mindestens {amount}', goalMaximumSummary:'Ziel: höchstens {amount}', dailyGoalsMinimumSummary:'Tagesziele: mindestens {amount}', dailyGoalsMaximumSummary:'Tagesziele: höchstens {amount}', loadingHistory:'Verlauf wird geladen…', unavailable:'Nicht verfügbar', dailyTotal:'Tagessumme',
       directionMin:'Mindestens (Minimum)', directionMax:'Höchstens (Maximum)',
       formEntities:'Messentitäten', formTitle:'Kartentitel (optional)', formIcon:'Symbol (optional)', formGoal:'Festes Tagesziel (wird bei festgelegter Zielentität ignoriert)', formGoalEntity:'Entität für das Tagesziel (optional)', formDirection:'Zielregel', formAggregation:'Messwertberechnung', formWeekStart:'Woche am Sonntag beginnen', formLegend:'Messwertlegende anzeigen', formUnit:'Einheit überschreiben (optional)', formCollectionKey:'Schlüssel der Energie-Zeitraumauswahl (optional)',
       successfulDays:'Erfolgreiche Tage', unsuccessfulDays:'Nicht erfolgreiche Tage', daysWithoutData:'Tage ohne Daten', filled:'Ausgefüllt', outlined:'Umrandet', symbols:'Symbole', dayMarkerStyles:'Darstellung der Tagesmarkierungen',
@@ -46,6 +58,7 @@
       aggStateLabel:'Letzter Tageswert', aggStateDescription:'Verwendet den zuletzt am Tag aufgezeichneten Wert und ignoriert frühere Messwerte. Wähle diese Option, wenn nur das Ergebnis am Tagesende zählt.',
       aggMeanLabel:'Tagesdurchschnitt', aggMeanDescription:'Verwendet den Durchschnitt aller im Tagesverlauf aufgezeichneten Werte. Wähle diese Option, wenn das allgemeine Tagesniveau wichtiger ist als ein kurzer hoher oder niedriger Messwert.',
       aggMinLabel:'Niedrigster Tageswert', aggMinDescription:'Verwendet den niedrigsten im Tagesverlauf aufgezeichneten Wert. Wähle diese Option, wenn ein einzelner niedriger Messwert das Ergebnis des ganzen Tages bestimmen soll.',
+      detailMax:'Höchstwert', detailChange:'Gesamtänderung', detailState:'Letzter Wert', detailMean:'Durchschnitt', detailMin:'Tiefstwert',
     },
   };
   const languageCode = (locale) => String(locale||'en').toLowerCase().split(/[-_]/)[0];
@@ -53,6 +66,18 @@
     const language=languageCode(locale),template=TRANSLATIONS[language]?.[key]??TRANSLATIONS.en[key]??key;
     return template.replace(/\{(\w+)\}/g,(_,name)=>values[name]??('{'+name+'}'));
   };
+  const AGGREGATIONS=[
+    {value:'max',labelKey:'aggMaxLabel',descriptionKey:'aggMaxDescription',detailKey:'detailMax'},
+    {value:'change',labelKey:'aggChangeLabel',descriptionKey:'aggChangeDescription',detailKey:'detailChange'},
+    {value:'state',labelKey:'aggStateLabel',descriptionKey:'aggStateDescription',detailKey:'detailState'},
+    {value:'mean',labelKey:'aggMeanLabel',descriptionKey:'aggMeanDescription',detailKey:'detailMean'},
+    {value:'min',labelKey:'aggMinLabel',descriptionKey:'aggMinDescription',detailKey:'detailMin'},
+  ];
+  const VALID_AGG=new Set(AGGREGATIONS.map(({value})=>value));
+  const localizedAggregationOptions=(locale)=>AGGREGATIONS.map(({value,labelKey,descriptionKey})=>({
+    value,label:translate(locale,labelKey),description:translate(locale,descriptionKey),
+  }));
+  const AGGREGATION_OPTIONS=localizedAggregationOptions('en');
   const browserLocale = () => (typeof document!=='undefined'&&document.documentElement?.lang)||(typeof navigator!=='undefined'&&navigator.language)||'en';
   const numeric = (value) => {
     if (value === null || value === undefined || value === '' || value === 'unknown' || value === 'unavailable') return null;
@@ -64,7 +89,7 @@
   const keyPlus = (key, n) => new Date(startKey(key).getTime() + n * DAY_MS).toISOString().slice(0,10);
   const dayDiff = (a, b) => Math.round((startKey(b) - startKey(a)) / DAY_MS);
   const dateParts = (date, zone) => {
-    const parts = new Intl.DateTimeFormat('en-US', {timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(date);
+    const parts = formatter('DateTimeFormat','en-US', {timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit'}).formatToParts(date);
     const get = (type) => parts.find((x) => x.type === type).value;
     return `${get('year')}-${get('month')}-${get('day')}`;
   };
@@ -73,7 +98,7 @@
     const [year, month, day] = key.split('-').map(Number);
     const intended = Date.UTC(year, month-1, day);
     let value = intended;
-    const fmt = new Intl.DateTimeFormat('en-US', {
+    const fmt = formatter('DateTimeFormat','en-US', {
       timeZone: zone, year:'numeric', month:'2-digit', day:'2-digit',
       hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'
     });
@@ -90,18 +115,25 @@
   const daysInMonth = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
   const weekOffset = (year, month, day=1, sunday=false) => (new Date(Date.UTC(year,month-1,day)).getUTCDay()+(sunday?0:6))%7;
   const weekdayLabels = (locale,sunday=false) => Array.from({length:7},(_,i)=>
-    new Intl.DateTimeFormat(locale,{timeZone:'UTC',weekday:'short'}).format(new Date(Date.UTC(2026,0,(sunday?4:5)+i)))
+    formatter('DateTimeFormat',locale,{timeZone:'UTC',weekday:'short'}).format(new Date(Date.UTC(2026,0,(sunday?4:5)+i)))
   );
   const makeKeys = (start,end,locale='en') => {
     const count = dayDiff(start,end);
     if (count<0 || count>750) throw new Error(translate(locale,'rangeTooLong'));
     return Array.from({length: count+1}, (_,i)=>keyPlus(start,i));
   };
-  const formatValue = (n, locale, digits) => n == null ? '—' : new Intl.NumberFormat(locale, {maximumFractionDigits: digits ?? (Number.isInteger(n) ? 0 : 1)}).format(n);
+  const formatValue = (n, locale, digits) => n == null ? '—' : formatter('NumberFormat',locale, {maximumFractionDigits: digits ?? (Number.isInteger(n) ? 0 : 1)}).format(n);
   const measurementEntities = (config) => [...new Set(
     (Array.isArray(config?.entities)?config.entities:(typeof config?.entity==='string'?[config.entity]:[]))
       .filter(id=>typeof id==='string'&&id)
   )];
+  const historyConfigKey = (config) => JSON.stringify([
+    measurementEntities(config),config?.aggregation||'max',config?.goal_entity||null,
+  ]);
+  const evaluationConfigKey = (config) => JSON.stringify([
+    config?.goal_entity?null:numeric(config?.goal),config?.direction||'min',
+  ]);
+  const totalParts = (parts) => parts.every(part=>part.value!==null)?parts.reduce((sum,part)=>sum+part.value,0):null;
   const shouldShowLegend = (config) => config?.show_legend === true || (config?.show_legend === undefined && config?.legend === 'show');
   const weekStartsSunday = (config) => config?.start_week_on_sunday === true;
   const FINISHED_STYLES = new Set(['filled','outline','symbols']);
@@ -112,7 +144,7 @@
     if(['met','missed'].includes(status))return finishedStyle(config);
     return ['no-data','no-goal'].includes(status)?'outline':null;
   };
-  const unitLabel = (config,hass) => config.unit || hass?.states?.[measurementEntities(config)[0]]?.attributes?.unit_of_measurement || '';
+  const unitLabel = (config,hass,entities=measurementEntities(config)) => config.unit || hass?.states?.[entities[0]]?.attributes?.unit_of_measurement || '';
   const stateValue = (state) => numeric(state?.state);
   const dailyFromStats = (rows, aggregation, tz) => {
     const values = new Map();
@@ -210,12 +242,13 @@
       --goal-icon-background:var(--ha-color-fill-primary-quiet-resting,rgba(3,169,244,.12));
     }
     ha-card{overflow:hidden;color:var(--goal-ink)}
+    .subtitle,.weekday,.month-button,.series-legend li,.detail{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;}
     .header{display:flex;align-items:center;gap:10px;min-height:56px;padding:0 10px;min-width:0;box-sizing:border-box}
     .header-icon{display:grid;place-items:center;width:36px;height:36px;flex:0 0 36px;border-radius:var(--ha-border-radius-pill,18px);background:var(--goal-icon-background);color:var(--goal-color)}
     .header-icon ha-state-icon{--mdc-icon-size:24px}
     .header-info{min-width:0;flex:1}
     .name{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .subtitle{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .subtitle{color:var(--goal-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .body{padding:var(--ha-space-3,12px) 10px 10px;min-width:0}
     .fill{width:100%;max-width:500px;margin:0 auto}
     .oval{width:min(100%,460px);aspect-ratio:5 / 2;margin:0 auto;position:relative;display:grid;place-items:center;color:var(--goal-color);border:0;background:transparent;padding:0;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -228,22 +261,21 @@
     .series-value{fill:none;stroke-linecap:butt;transition:opacity 180ms ease-in-out}
     .series-cap{fill:none;stroke-linecap:round;transition:opacity 180ms ease-in-out}
     .series-value.hidden,.series-cap.hidden{opacity:0}
-    .oval-text{display:flex;align-items:baseline;position:relative;z-index:1;gap:var(--ha-space-1,4px)}
+    .oval-content{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1}
+    .oval-text{display:flex;align-items:baseline;gap:var(--ha-space-1,4px)}
     .oval-text .measurement{font-size:var(--ha-font-size-3xl,28px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:0}
     .oval-text .unit{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);color:var(--goal-muted)}
-    .strip{display:grid;grid-template-columns:repeat(var(--day-columns,7),minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;place-items:center;max-width:500px;margin:0 auto;width:100%}
-    .weekday,.month-button{font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;color:var(--goal-muted)}
+    .strip,.month-grid,.mini-grid{display:grid;grid-template-columns:repeat(var(--day-columns,7),minmax(0,1fr));gap:var(--day-gap,var(--ha-space-2,8px) 2px);place-items:center;width:100%;max-width:var(--grid-width,500px);margin:0 auto}
+    .weekday,.month-button{color:var(--goal-muted)}
     .dot{border:3px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
     .dot > span{position:relative;z-index:1}
     .oval:focus-visible,.dot:focus-visible,.mini-dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
     .dot[aria-pressed=true]{box-shadow:0 0 0 2px var(--card-background-color,#fff),0 0 0 4px var(--goal-focus)}
-    .dot.met{background:var(--goal-success);border-color:var(--goal-success);color:var(--goal-on-success)}
-    .dot.missed{background:var(--goal-error);border-color:var(--goal-error);color:var(--goal-on-error)}
-    .dot.met.marker-outline{background:transparent;border-color:var(--goal-success);color:var(--goal-success)}
-    .dot.missed.marker-outline{background:transparent;border-color:var(--goal-error);color:var(--goal-error)}
-    .dot.marker-symbols{background:transparent;border-color:transparent}
-    .dot.met.marker-symbols{color:var(--goal-success)}
-    .dot.missed.marker-symbols{color:var(--goal-error)}
+    .dot.met,.mini-dot.met{--marker-color:var(--goal-success);--marker-ink:var(--goal-on-success)}
+    .dot.missed,.mini-dot.missed{--marker-color:var(--goal-error);--marker-ink:var(--goal-on-error)}
+    .dot.met,.dot.missed,.mini-dot.met::after,.mini-dot.missed::after{background:var(--marker-color);border-color:var(--marker-color);color:var(--marker-ink)}
+    .dot.marker-outline,.mini-dot.marker-outline::after{background:transparent;border-color:var(--marker-color);color:var(--marker-color)}
+    .dot.marker-symbols{background:transparent;border-color:transparent;color:var(--marker-color,var(--goal-unavailable))}
     .dot.marker-symbols > span{font-size:18px;font-weight:var(--ha-font-weight-bold,700)}
     .dot.progress,.dot.multi-current{border-width:0}
     .dot.no-data,.dot.no-goal{border:0;color:var(--goal-unavailable)}
@@ -256,17 +288,13 @@
     .progress-ring .value{fill:none;stroke:var(--goal-color);stroke-linecap:round}
     .progress-ring .series-value,.progress-ring .series-cap{fill:none}
     .unavailable-ring circle{fill:none;stroke:var(--goal-unavailable);stroke-linecap:round}
-    .month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-2,8px) 2px;align-items:center;justify-items:center;max-width:430px;margin:0 auto;width:100%}
+    .month-grid{--grid-width:430px}
     .month-collection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px);width:100%}
     .mini-month{padding:0;min-width:0}
     .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;margin:0 0 var(--ha-space-2,8px);cursor:pointer}
-    .mini-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:var(--ha-space-1,4px) 2px;place-items:center}
+    .mini-grid{--day-gap:var(--ha-space-1,4px) 2px;max-width:none}
     .mini-dot{position:relative;width:12px;height:12px;border:0;background:transparent;padding:0;border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box;cursor:pointer}
     .mini-dot::after{content:"";position:absolute;inset:0;border:1.5px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
-    .mini-dot.met::after{background:var(--goal-success);border-color:var(--goal-success)}
-    .mini-dot.missed::after{border-color:var(--goal-error);background:var(--goal-error)}
-    .mini-dot.met.marker-outline::after{background:transparent;border-color:var(--goal-success)}
-    .mini-dot.missed.marker-outline::after{background:transparent;border-color:var(--goal-error)}
     .mini-dot.marker-symbols::after{inset:0;border:0;background:transparent;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
     .mini-dot.met.marker-symbols::after{content:"\\2713";color:var(--goal-success)}
     .mini-dot.missed.marker-symbols::after{content:"\\00d7";color:var(--goal-error)}
@@ -280,10 +308,10 @@
     .mini-dot .progress-ring,.mini-dot .unavailable-ring{inset:0;width:12px;height:12px}
     .many-months{max-height:320px;overflow:auto;width:100%;padding:0;box-sizing:border-box}
     .many-months.unscrolled{max-height:none;overflow:visible}
-    .many-months .mini-grid{gap:3px 1px}
+    .many-months .mini-grid{--day-gap:3px 1px}
     .drillback{display:flex;align-items:center;border:0;background:transparent;color:var(--goal-color);padding:0 0 var(--ha-space-3,12px);cursor:pointer;font:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-condensed,1.2)}
     .series-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--ha-space-2,8px) var(--ha-space-4,16px);list-style:none;margin:var(--ha-space-3,12px) 0 0;padding:0}
-    .series-legend li{display:flex;align-items:center;min-width:0;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px}
+    .series-legend li{display:flex;align-items:center;min-width:0}
     .legend-toggle,.legend-label{border:0;background:transparent;font:inherit;padding:0;cursor:pointer}
     .legend-toggle{display:grid;place-items:center;width:24px;height:24px;margin-inline-end:2px;color:var(--series-color)}
     .legend-toggle.static{cursor:default}
@@ -296,18 +324,19 @@
     .legend-label{max-width:150px;color:var(--goal-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .legend-value{margin-inline-start:var(--ha-space-1,4px);color:var(--goal-muted);white-space:nowrap}
     .legend-toggle:focus-visible,.legend-label:focus-visible{outline:2px solid var(--goal-focus);outline-offset:1px;border-radius:var(--ha-border-radius-sm,4px)}
-    .detail{margin-top:var(--ha-space-3,12px);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:.4px;text-align:center;color:var(--goal-muted)}
+    .detail{display:block;margin-top:var(--ha-space-3,12px);text-align:center;color:var(--goal-muted)}
+    .oval-detail{margin-top:var(--ha-space-1,4px)}
     .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px}
     .muted{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);text-align:center}
     .error{color:var(--goal-error);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-normal,1.6);text-align:center;padding:var(--ha-space-4,16px)}
-    @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{gap:3px 1px}}
+    @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{--day-gap:3px 1px}}
   `;
 
   class DailyGoalsCard extends HTMLElement {
     constructor(){
       super();this.attachShadow({mode:'open'});
-      this._config=null;this._hass=null;this._period=null;this._signature='';this._selected=null;this._selectedMonth=null;
-      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._lastDataRequest='';this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._restartOnConnect=false;
+      this._config=null;this._hass=null;this._period=null;this._signature='';this._sourceSignature='';this._selected=null;this._selectedMonth=null;
+      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._restartOnConnect=false;
       this.shadowRoot.innerHTML=`<style>${css}</style><ha-card><div id="content"></div></ha-card>`;
       this.shadowRoot.addEventListener('click', (e)=>{
         const btn=e.target.closest('[data-day],[data-month],[data-toggle-entity],[data-more-info]');if(!btn)return;
@@ -340,8 +369,15 @@
       for(const name of ['success_style','failure_style','no_data_style'])if(config[name]&&!FINISHED_STYLES.has(config[name]))throw new Error(this._t('namedStyleError',{name}));
       if(config.start_week_on_sunday!==undefined && typeof config.start_week_on_sunday!=='boolean')throw new Error(this._t('weekStartError'));
       if(config.show_legend!==undefined && typeof config.show_legend!=='boolean')throw new Error(this._t('legendError'));
-      const key=JSON.stringify(config);
-      if(key!==JSON.stringify(this._config)){this._config={...config};this._signature='';this._lastDataRequest='';this._selected=null;this._selectedMonth=null;this._hiddenEntities.clear();this._syncPeriod(true)}
+      const previous=this._config;
+      const historyChanged=!previous||historyConfigKey(config)!==historyConfigKey(previous);
+      const periodChanged=!previous||(config.collection_key||null)!==(previous.collection_key||null);
+      const evaluationChanged=!previous||evaluationConfigKey(config)!==evaluationConfigKey(previous);
+      this._config={...config};
+      if(historyChanged||periodChanged){
+        this._signature='';this._sourceSignature='';this._selected=null;this._selectedMonth=null;this._hiddenEntities.clear();
+        this._syncPeriod(true);
+      } else if(evaluationChanged)this._rebuildDays();
       this._render();
     }
     set hass(hass){
@@ -381,7 +417,7 @@
       });
       this._resizeObserver.observe(card);
     }
-    _tz(){return this._hass?.config?.time_zone||Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC'}
+    _tz(){return this._hass?.config?.time_zone||formatter('DateTimeFormat',undefined).resolvedOptions().timeZone||'UTC'}
     _locale(){return this._hass?.locale?.language||browserLocale()}
     _t(key,values){return translate(this._locale(),key,values)}
     _syncPeriod(force=false){
@@ -391,7 +427,17 @@
       const from=col?.start instanceof Date ? col.start : col?.start ? new Date(col.start) : now;
       const to=col?.end instanceof Date ? col.end : col?.end ? new Date(col.end) : from;
       if(Number.isNaN(from.getTime())||Number.isNaN(to.getTime()))return;
-      const a=dateParts(from,tz),b=dateParts(to,tz),signature=`${a}/${b}/${tz}`;
+      let a,b,sourceSignature;
+      if(col){
+        sourceSignature=`collection/${from.getTime()}/${to.getTime()}/${tz}`;
+        if(!force&&sourceSignature===this._sourceSignature)return;
+        a=dateParts(from,tz);b=dateParts(to,tz);
+      } else {
+        a=dateParts(now,tz);b=a;sourceSignature=`today/${a}/${tz}`;
+        if(!force&&sourceSignature===this._sourceSignature)return;
+      }
+      this._sourceSignature=sourceSignature;
+      const signature=`${a}/${b}/${tz}`;
       if(!force && signature===this._signature)return;
       this._signature=signature;this._period={start:a,end:b};this._selected=null;this._selectedMonth=null;
       this._load();
@@ -421,9 +467,9 @@
         }
         // Recorder's REST history fills recent gaps, especially input_number goals.
         // Restrict to recent history to avoid querying years of state changes.
-        const recentStart=keyPlus(dateParts(new Date(),tz),-10);
+        const today=dateParts(new Date(),tz),recentStart=keyPlus(today,-10);
         const histStart=period.start>recentStart?period.start:recentStart;
-        const histEnd=period.end<dateParts(new Date(),tz)?period.end:dateParts(new Date(),tz);
+        const histEnd=period.end<today?period.end:today;
         if(histStart<=histEnd && typeof hass.callApi==='function'){
           const begin=zonedMidnight(histStart,tz).toISOString();
           const until=zonedMidnight(keyPlus(histEnd,1),tz).toISOString();
@@ -461,7 +507,7 @@
           const metric=this._metrics?.get(entity);
           return {entity,value:metric?.has(key)?metric.get(key):null};
         });
-        const value=parts.every(part=>part.value!==null)?parts.reduce((sum,part)=>sum+part.value,0):null;
+        const value=totalParts(parts);
         const goal=config.goal_entity?(this._targets?.get(key)??null):goalFixed;
         return {key,value,goal,parts,status:evaluate(value,goal,config.direction||'min',key,today)};
       });
@@ -487,22 +533,28 @@
         }
         return {entity,value};
       });
-      row.value=row.parts.every(part=>part.value!==null)?row.parts.reduce((sum,part)=>sum+part.value,0):null;
+      row.value=totalParts(row.parts);
       if(this._config.goal_entity){
         const goal=stateValue(this._hass.states?.[this._config.goal_entity]);
         if(goal!==null)row.goal=goal;
       }
       row.status=evaluate(row.value,row.goal,this._config.direction||'min',row.key,today);
     }
-    _formatDate(key,monthOnly=false){
-      return new Intl.DateTimeFormat(this._locale(),monthOnly?{timeZone:'UTC',year:'numeric',month:'long'}:{timeZone:'UTC',day:'numeric',month:'short',year:'numeric'}).format(new Date(`${key}T12:00:00Z`));
+    _entities(){return this._renderContext?.entities??measurementEntities(this._config)}
+    _today(){return this._renderContext?.today??dateParts(new Date(),this._tz())}
+    _unit(){return this._renderContext?.unit??unitLabel(this._config,this._hass,this._entities())}
+    _dateLabel(key,options){
+      return formatter('DateTimeFormat',this._locale(),{timeZone:'UTC',...options}).format(new Date(`${key}T12:00:00Z`));
     }
-    _weekday(key){return new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',weekday:'short'}).format(new Date(`${key}T12:00:00Z`))}
+    _formatDate(key,monthOnly=false){
+      return this._dateLabel(key,monthOnly?{year:'numeric',month:'long'}:{day:'numeric',month:'short',year:'numeric'});
+    }
+    _weekday(key){return this._dateLabel(key,{weekday:'short'})}
     _format(n){return formatValue(n,this._locale(),this._config?.precision)}
     _label(row){
       if(!row)return this._t('noSelection');
-      const states={met:this._t('goalMet'),missed:this._t('goalMissed'),progress:this._t('inProgress'),'no-data':this._t('noData'),'no-goal':this._t('goalUnavailable'),future:this._t('future')};
-      return states[row.status]||row.status;
+      const key=STATUS_LABELS[row.status];
+      return key?this._t(key):row.status;
     }
     _progress(row){
       if(row?.value==null||row?.goal==null)return 0;
@@ -519,7 +571,7 @@
       if(!row||row.status==='future')return this._t('futureDay');
       if(row.value==null)return this._t('noData');
       if(row.goal==null)return this._t('goalUnavailable');
-      const unit=unitLabel(this._config,this._hass);
+      const unit=this._unit();
       const amount=value=>`${this._format(value)}${unit?` ${unit}`:``}`;
       const remaining=row.goal-row.value;
       if(this._config?.direction==='max'){
@@ -532,7 +584,7 @@
       return this._t('aboveGoal',{amount:amount(-remaining)});
     }
     _isMultiCurrent(row){
-      return measurementEntities(this._config).length>1&&row?.key===dateParts(new Date(),this._tz())&&(row.parts?.length||0)>1;
+      return this._entities().length>1&&row?.key===this._today()&&(row.parts?.length||0)>1;
     }
     _seriesColor(index){
       const fallback=['#4269d0','#f4bd4a','#ff725c','#6cc5b0','#a463f2','#ff8ab7','#9c6b4e','#97bbf5','#01ab63','#094bad','#c99000','#ff9d3f'];
@@ -551,28 +603,33 @@
         return result;
       });
     }
-    _stackedRing(row,mini=false){
-      const size=mini?12:32,center=size/2,radius=mini?5.25:14.5,stroke=mini?1.5:3;
-      const segments=this._seriesSegments(row).filter(segment=>segment.length>0);
-      const values=segments.map(segment=>`<circle class="series-value${segment.hidden?' hidden':''}" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${segment.length.toFixed(3)} ${(100-segment.length).toFixed(3)}" stroke-dashoffset="${(-segment.offset).toFixed(3)}" transform="rotate(-90 ${center} ${center})" style="stroke:${segment.color}"/>`).join('');
-      const total=segments.length?segments.at(-1).offset+segments.at(-1).length:0;
-      const caps=segments.length&&total<99.999?[[segments[0],0],[segments.at(-1),total]].map(([segment,offset])=>`<circle class="series-cap${segment.hidden?' hidden':''}" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="0 100" stroke-dashoffset="${(-offset).toFixed(3)}" transform="rotate(-90 ${center} ${center})" style="stroke:${segment.color}"/>`).join(''):'';
-      return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" cx="${center}" cy="${center}" r="${radius}" stroke-width="${stroke}"/>${values}${caps}</svg>`;
+    _ringGeometry(mini=false){
+      const size=mini?12:32,stroke=mini?1.5:3,center=size/2;
+      return {size,center,attributes:`cx="${center}" cy="${center}" r="${(size-stroke)/2}"`,stroke};
     }
-    _stackedPath(row,path){
+    _stackedSegments(row,tag,attributes){
       const segments=this._seriesSegments(row).filter(segment=>segment.length>0);
-      const values=segments.map(segment=>`<path class="series-value${segment.hidden?' hidden':''}" d="${path}" pathLength="100" stroke-width="10" fill="none" stroke-dasharray="${segment.length.toFixed(3)} ${(100-segment.length).toFixed(3)}" stroke-dashoffset="${(-segment.offset).toFixed(3)}" style="stroke:${segment.color}"/>`).join('');
+      const render=(segment,length,offset,kind)=>`<${tag} class="series-${kind}${segment.hidden?' hidden':''}" ${attributes} pathLength="100" stroke-linecap="${kind==='cap'?'round':'butt'}" stroke-dasharray="${length} ${kind==='cap'?'100':(100-segment.length).toFixed(3)}" stroke-dashoffset="${(-offset).toFixed(3)}" style="stroke:${segment.color}"/>`;
+      const values=segments.map(segment=>render(segment,segment.length.toFixed(3),segment.offset,'value')).join('');
       const total=segments.length?segments.at(-1).offset+segments.at(-1).length:0;
-      const caps=segments.length&&total<99.999?[[segments[0],0],[segments.at(-1),total]].map(([segment,offset])=>`<path class="series-cap${segment.hidden?' hidden':''}" d="${path}" pathLength="100" stroke-width="10" fill="none" stroke-dasharray="0 100" stroke-dashoffset="${(-offset).toFixed(3)}" style="stroke:${segment.color}"/>`).join(''):'';
+      const caps=segments.length&&total<99.999?[[segments[0],0],[segments.at(-1),total]].map(([segment,offset])=>render(segment,0,offset,'cap')).join(''):'';
       return values+caps;
     }
+    _stackedRing(row,mini=false){
+      const {size,center,attributes,stroke}=this._ringGeometry(mini);
+      const segments=this._stackedSegments(row,'circle',`${attributes} stroke-width="${stroke}" transform="rotate(-90 ${center} ${center})"`);
+      return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" ${attributes} stroke-width="${stroke}"/>${segments}</svg>`;
+    }
+    _stackedPath(row,path){
+      return this._stackedSegments(row,'path',`d="${path}" stroke-width="10" fill="none"`);
+    }
     _progressRing(pct,mini=false){
-      const size=mini?12:32,center=size/2,radius=mini?5.25:14.5,stroke=mini?1.5:3;
-      return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" cx="${center}" cy="${center}" r="${radius}" stroke-width="${stroke}"/><circle class="value" cx="${center}" cy="${center}" r="${radius}" pathLength="100" stroke-width="${stroke}" stroke-dasharray="${pct} 100" transform="rotate(-90 ${center} ${center})"/></svg>`;
+      const {size,center,attributes,stroke}=this._ringGeometry(mini);
+      return `<svg class="progress-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle class="track" ${attributes} stroke-width="${stroke}"/><circle class="value" ${attributes} pathLength="100" stroke-width="${stroke}" stroke-dasharray="${pct} 100" transform="rotate(-90 ${center} ${center})"/></svg>`;
     }
     _unavailableRing(mini=false){
-      const size=mini?12:32,center=size/2,radius=mini?5.25:14.5,stroke=mini?1.5:3,pathLength=mini?15:21;
-      return `<svg class="unavailable-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle cx="${center}" cy="${center}" r="${radius}" pathLength="${pathLength}" stroke-width="${stroke}" stroke-dasharray="1 2" transform="rotate(-90 ${center} ${center})"/></svg>`;
+      const {size,center,attributes,stroke}=this._ringGeometry(mini),pathLength=mini?15:21;
+      return `<svg class="unavailable-ring" viewBox="0 0 ${size} ${size}" aria-hidden="true"><circle ${attributes} pathLength="${pathLength}" stroke-width="${stroke}" stroke-dasharray="1 2" transform="rotate(-90 ${center} ${center})"/></svg>`;
     }
     _renderDot(row,mini=false){
       if(!row)return '<span></span>';
@@ -580,77 +637,83 @@
       const style=markerStyle(this._config,row.status);
       const unavailable=['no-data','no-goal'].includes(row.status)&&style==='outline';
       const ring=multiCurrent?this._stackedRing(row,mini):(row.status==='progress'?this._progressRing(pct,mini):(unavailable?this._unavailableRing(mini):''));
-      const active=this._selected===row.key,currentClass=multiCurrent?' multi-current':'',styleClass=style?` marker-${style}`:'';
+      const classes=`${mini?'mini-dot':'dot'} ${row.status}${style?` marker-${style}`:''}${multiCurrent?' multi-current':''}`;
       const dayLabel=`${this._formatDate(row.key)}: ${this._label(row)}`;
-      if(mini)return `<button type="button" class="mini-dot ${row.status}${styleClass}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(dayLabel)}" title="${escapeHTML(dayLabel)}">${ring}</button>`;
+      const label=mini?dayLabel:`${dayLabel}. ${row.value===null?'':`${this._format(row.value)} ${this._unit()}`}`;
       const symbols={met:'&#10003;',missed:'&times;','no-data':'–','no-goal':'–'};
       const sym=(style==='symbols'||row.status==='no-goal')&&symbols[row.status]?symbols[row.status]:Number(row.key.slice(-2));
-      return `<button type="button" class="dot ${row.status}${styleClass}${currentClass}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(this._formatDate(row.key))}: ${escapeHTML(this._label(row))}. ${row.value===null?'':`${escapeHTML(this._format(row.value))} ${escapeHTML(unitLabel(this._config,this._hass))}`}">${ring}<span>${sym}</span></button>`;
+      return this._dayButton(row,classes,ring+(mini?'':`<span>${sym}</span>`),label,mini);
     }
-    _monthGrid(year,month,small=false){
-      const sunday=weekStartsSunday(this._config),limit=daysInMonth(year,month),prefix=weekOffset(year,month,1,sunday),map=new Map(this._days.map(d=>[d.key,d]));
-      let cells='';
-      if(!small){
-        const labels=weekdayLabels(this._locale(),sunday);
-        cells+=labels.map(s=>`<span class="weekday">${escapeHTML(s)}</span>`).join('');
-      }
-      for(let i=0;i<prefix;i++)cells+='<span></span>';
-      for(let d=1;d<=limit;d++){
-        const key=`${year}-${String(month).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-        cells+=this._renderDot(map.get(key),small);
-      }
-      return `<div class="${small?'mini-grid':'month-grid'}">${cells}</div>`;
+    _dayButton(row,classes,content,label,showTitle=false){
+      const escapedLabel=escapeHTML(label);
+      return `<button type="button" class="${classes}" data-day="${row.key}" aria-pressed="${this._selected===row.key}" aria-label="${escapedLabel}"${showTitle?` title="${escapedLabel}"`:''}>${content}</button>`;
+    }
+    _view(content){
+      return `<div class="fill">${content}${this._selectionDetail()}</div>`;
+    }
+    _dayGrid(rows,{className='month-grid',labels=weekdayLabels(this._locale(),weekStartsSunday(this._config)),prefix=0,mini=false,columns}={}){
+      const headings=labels.map(label=>`<span class="weekday">${escapeHTML(label)}</span>`).join('');
+      const cells='<span></span>'.repeat(prefix)+rows.map(row=>this._renderDot(row,mini)).join('');
+      return `<div class="${className}"${columns?` style="--day-columns:${columns}"`:''}>${headings}${cells}</div>`;
+    }
+    _monthGrid(year,month,small=false,map=new Map(this._days.map(row=>[row.key,row]))){
+      const prefix=weekOffset(year,month,1,weekStartsSunday(this._config));
+      const rows=Array.from({length:daysInMonth(year,month)},(_,index)=>map.get(`${year}-${String(month).padStart(2,'0')}-${String(index+1).padStart(2,'0')}`));
+      return this._dayGrid(rows,{className:small?'mini-grid':'month-grid',prefix,mini:small,labels:small?[]:undefined});
     }
     _miniMonths(){
       if(this._selectedMonth){
         const [year,month]=this._selectedMonth.split('-').map(Number);
-        return `<div class="fill"><button type="button" class="drillback" data-month="all">‹&nbsp; ${escapeHTML(this._t('allMonths'))}</button>${this._monthGrid(year,month)}${this._selectionDetail()}</div>`;
+        return this._view(`<button type="button" class="drillback" data-month="all">‹&nbsp; ${escapeHTML(this._t('allMonths'))}</button>${this._monthGrid(year,month)}`);
       }
       const months=[...new Set(this._days.map(d=>d.key.slice(0,7)))];
-      const unscrolled=months.length<=13;
+      const unscrolled=months.length<=13,map=new Map(this._days.map(row=>[row.key,row]));
       return `<div class="many-months${unscrolled?' unscrolled':''}"><div class="month-collection">${months.map(month=>{
         const [year,m]=month.split('-').map(Number);
         const title=this._formatDate(month+'-01',true);
-        const shortTitle=new Intl.DateTimeFormat(this._locale(),{timeZone:'UTC',year:'numeric',month:'short'}).format(new Date(month+'-01T12:00:00Z'));
-        return `<div class="mini-month"><button class="month-button" data-month="${month}" aria-label="${escapeHTML(this._t('selectMonth',{month:title}))}">${escapeHTML(shortTitle)}</button>${this._monthGrid(year,m,true)}</div>`;
+        const shortTitle=this._dateLabel(month+'-01',{year:'numeric',month:'short'});
+        return `<div class="mini-month"><button class="month-button" data-month="${month}" aria-label="${escapeHTML(this._t('selectMonth',{month:title}))}">${escapeHTML(shortTitle)}</button>${this._monthGrid(year,m,true,map)}</div>`;
       }).join('')}</div></div>${this._selectionDetail()}`;
     }
     _dayView(row){
-      const unit=unitLabel(this._config,this._hass),pct=this._progress(row);
+      const unit=this._unit(),pct=this._progress(row);
       const path='M 125 8 H 200 A 42 42 0 0 1 242 50 A 42 42 0 0 1 200 92 H 50 A 42 42 0 0 1 8 50 A 42 42 0 0 1 50 8 H 125';
       const label=`${this._formatDate(row.key)}: ${this._label(row)}. ${this._format(row.value)} ${unit}. ${this._t('goalAria',{value:this._format(row.goal),unit})}`;
-      const active=this._selected===row.key,multiCurrent=this._isMultiCurrent(row);
+      const multiCurrent=this._isMultiCurrent(row);
       const valuePath=multiCurrent?this._stackedPath(row,path):`<path class="value" d="${path}" pathLength="100" stroke-width="10" fill="none" stroke-dasharray="${pct} 100"/>`;
-      return `<div class="fill"><button type="button" class="oval ${row.status}${multiCurrent?' multi-current':''}" data-day="${row.key}" aria-pressed="${active}" aria-label="${escapeHTML(label)}"><svg viewBox="0 0 250 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="10" fill="none"/>${valuePath}</svg><span class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span></button>${this._selectionDetail()}</div>`;
+      const detail=this._selected===row.key?this._selectionDetail(true):'';
+      const content=`<svg viewBox="0 0 250 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="10" fill="none"/>${valuePath}</svg><span class="oval-content"><span class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span>${detail}</span>`;
+      return `<div class="fill">${this._dayButton(row,`oval ${row.status}${multiCurrent?' multi-current':''}`,content,label)}</div>`;
     }
-    _selectionDetail(){
+    _selectionDetail(inOval=false){
       const row=this._days.find(d=>d.key===this._selected);
       if(!row)return '';
-      const unit=unitLabel(this._config,this._hass);
-      return `<div class="detail"><strong>${this._format(row.value)} ${escapeHTML(unit)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._percentageText(row))}</div>`;
+      const unit=this._unit(),aggregation=this._config?.aggregation||'max';
+      const detailKey=AGGREGATIONS.find(option=>option.value===aggregation)?.detailKey||'detailMax';
+      const amount=`${this._format(row.value)}${unit?` ${unit}`:''}`;
+      return `<span class="detail${inOval?' oval-detail':''}"><strong>${escapeHTML(this._t(detailKey))} ${escapeHTML(amount)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._percentageText(row))}</span>`;
     }
     _weekView(){
       const columns=Math.min(7,this._days.length);
-      const headings=this._days.slice(0,columns).map(row=>`<span class="weekday">${escapeHTML(this._weekday(row.key))}</span>`).join('');
-      return `<div class="fill"><div class="strip" style="--day-columns:${columns}">${headings}${this._days.map(row=>this._renderDot(row)).join('')}</div>${this._selectionDetail()}</div>`;
+      const labels=this._days.slice(0,columns).map(row=>this._weekday(row.key));
+      return this._view(this._dayGrid(this._days,{className:'strip',labels,columns}));
     }
     _monthView(){
       const [year,month]=this._days[0].key.split('-').map(Number);
-      return `<div class="fill">${this._monthGrid(year,month)}${this._selectionDetail()}</div>`;
+      return this._view(this._monthGrid(year,month));
     }
     _rollingMonthView(){
       const first=this._days[0]?.key;
       if(!first)return '';
-      const sunday=weekStartsSunday(this._config),labels=weekdayLabels(this._locale(),sunday);
-      const prefix=(new Date(`${first}T12:00:00Z`).getUTCDay()+(sunday?0:6))%7;
-      const cells=labels.map(label=>`<span class="weekday">${escapeHTML(label)}</span>`).join('')+'<span></span>'.repeat(prefix)+this._days.map(row=>this._renderDot(row)).join('');
-      return `<div class="fill"><div class="month-grid">${cells}</div>${this._selectionDetail()}</div>`;
+      const [year,month,day]=first.split('-').map(Number);
+      const prefix=weekOffset(year,month,day,weekStartsSunday(this._config));
+      return this._view(this._dayGrid(this._days,{prefix}));
     }
     _seriesLegend(){
       if(!shouldShowLegend(this._config))return '';
-      const row=this._days.find(day=>day.key===dateParts(new Date(),this._tz()));
+      const today=this._today(),row=this._days.find(day=>day.key===today);
       if(!row?.parts?.length)return '';
-      const unit=unitLabel(this._config,this._hass),interactive=row.parts.length>1;
+      const unit=this._unit(),interactive=row.parts.length>1;
       const items=row.parts.map((part,index)=>{
         const hidden=this._hiddenEntities.has(part.entity),name=this._hass.states?.[part.entity]?.attributes?.friendly_name||part.entity;
         const value=`${this._format(part.value)}${unit?` ${unit}`:''}`;
@@ -660,10 +723,20 @@
       return `<ul class="series-legend" aria-label="${escapeHTML(this._t('measurementEntities'))}">${items}</ul>`;
     }
     _summaryText(){
-      const today=dateParts(new Date(),this._tz());
+      const today=this._today();
       const evaluated=this._days.filter(row=>row.key<=today&&['met','missed','progress'].includes(row.status));
       const met=evaluated.filter(row=>row.status==='met').length;
-      return this._t(evaluated.length===1?'summaryOne':'summaryMany',{met,total:evaluated.length});
+      const summary=this._t(evaluated.length===1?'summaryOne':'summaryMany',{met,total:evaluated.length});
+      const rowGoals=this._days.filter(row=>row.key<=today&&row.goal!=null).map(row=>row.goal);
+      const configuredGoal=numeric(this._config?.goal);
+      const goals=[...new Set(rowGoals.length?rowGoals:(configuredGoal===null?[]:[configuredGoal]))].sort((a,b)=>a-b);
+      if(!goals.length)return summary;
+      const unit=this._unit();
+      const values=goals.length===1?this._format(goals[0]):`${this._format(goals[0])}–${this._format(goals.at(-1))}`;
+      const amount=`${values}${unit?` ${unit}`:''}`;
+      const maximum=this._config?.direction==='max';
+      const goal=this._t(goals.length===1?(maximum?'goalMaximumSummary':'goalMinimumSummary'):(maximum?'dailyGoalsMaximumSummary':'dailyGoalsMinimumSummary'),{amount});
+      return `${summary} · ${goal}`;
     }
     _stateText(kind){
       if(this._loading)return this._t('loadingHistory');
@@ -675,39 +748,30 @@
       const root=this.shadowRoot.getElementById('content');if(!root)return;
       const c=this._config,hass=this._hass,rows=this._days;
       const entityIds=measurementEntities(c),primary=entityIds[0];
-      const title=c.title||(entityIds.length>1?this._t('dailyTotal'):hass.states?.[primary]?.attributes?.friendly_name||primary);
-      const kind=rows.length?getLayout(rows.map(d=>d.key)):'day';
-      let stage='';
-      if(this._error)stage=`<div class="error">${escapeHTML(this._error)}</div>`;
-      else if(this._loading)stage=`<div class="muted">${escapeHTML(this._t('loadingHistory'))}</div>`;
-      else if(kind==='day')stage=this._dayView(rows[0]);
-      else if(kind==='week')stage=this._weekView();
-      else if(kind==='month')stage=this._monthView();
-      else if(kind==='rolling-month')stage=this._rollingMonthView();
-      else stage=this._miniMonths();
-      const legend=!this._loading&&!this._error?this._seriesLegend():'';
-      const state=this._stateText(kind);
-      root.innerHTML=`<div class="header"><div class="header-icon" aria-hidden="true"><ha-state-icon></ha-state-icon></div><div class="header-info"><div class="name">${escapeHTML(title)}</div><div class="subtitle">${escapeHTML(state)}</div></div></div><div class="body">${stage}${legend}</div>`;
-      const stateIcon=root.querySelector('ha-state-icon');
-      if(stateIcon){stateIcon.hass=hass;stateIcon.stateObj=hass.states?.[primary];if(c.icon)stateIcon.icon=c.icon;}
+      this._renderContext={entities:entityIds,today:dateParts(new Date(),this._tz()),unit:unitLabel(c,hass,entityIds)};
+      try {
+        const title=c.title||(entityIds.length>1?this._t('dailyTotal'):hass.states?.[primary]?.attributes?.friendly_name||primary);
+        const kind=rows.length?getLayout(rows.map(d=>d.key)):'day';
+        let stage='';
+        if(this._error)stage=`<div class="error">${escapeHTML(this._error)}</div>`;
+        else if(this._loading)stage=`<div class="muted">${escapeHTML(this._t('loadingHistory'))}</div>`;
+        else if(kind==='day')stage=this._dayView(rows[0]);
+        else if(kind==='week')stage=this._weekView();
+        else if(kind==='month')stage=this._monthView();
+        else if(kind==='rolling-month')stage=this._rollingMonthView();
+        else stage=this._miniMonths();
+        const legend=!this._loading&&!this._error?this._seriesLegend():'';
+        const state=this._stateText(kind);
+        root.innerHTML=`<div class="header"><div class="header-icon" aria-hidden="true"><ha-state-icon></ha-state-icon></div><div class="header-info"><div class="name">${escapeHTML(title)}</div><div class="subtitle">${escapeHTML(state)}</div></div></div><div class="body">${stage}${legend}</div>`;
+        const stateIcon=root.querySelector('ha-state-icon');
+        if(stateIcon){stateIcon.hass=hass;stateIcon.stateObj=hass.states?.[primary];if(c.icon)stateIcon.icon=c.icon;}
+      } finally {
+        // Never reuse a render snapshot after a config, sensor, or date change.
+        this._renderContext=null;
+      }
     }
   }
 
-  const AGGREGATION_OPTIONS=[
-    {value:'max',label:'Highest value per day',description:'Uses the highest value recorded during the day. Choose this when a single high reading matters, or when a daily counter only moves upward.'},
-    {value:'change',label:'Total change during the day',description:'Uses how much a continuously increasing meter advanced during the day, rather than its displayed reading. Choose this for a total that carries over from one day to the next.'},
-    {value:'state',label:'Last value of the day',description:'Uses the most recently recorded value of the day and ignores earlier readings. Choose this when the end-of-day result is what matters.'},
-    {value:'mean',label:'Average value per day',description:'Uses the average of the values recorded throughout the day. Choose this when the overall daily level matters more than a brief high or low reading.'},
-    {value:'min',label:'Lowest value per day',description:'Uses the lowest value recorded during the day. Choose this when a single low reading should determine the result for the whole day.'},
-  ];
-  const AGGREGATION_TRANSLATION_KEYS={
-    max:['aggMaxLabel','aggMaxDescription'],change:['aggChangeLabel','aggChangeDescription'],state:['aggStateLabel','aggStateDescription'],
-    mean:['aggMeanLabel','aggMeanDescription'],min:['aggMinLabel','aggMinDescription'],
-  };
-  const localizedAggregationOptions=(locale)=>AGGREGATION_OPTIONS.map(option=>{
-    const [label,description]=AGGREGATION_TRANSLATION_KEYS[option.value];
-    return {...option,label:translate(locale,label),description:translate(locale,description)};
-  });
   const FORM_SCHEMA=[
     {name:'entities',required:true,selector:{entity:{domain:['sensor','number','input_number'],multiple:true}}},
     {name:'title',selector:{text:{}}},
@@ -728,9 +792,9 @@
     return schema;
   });
   const STYLE_ROWS=[
-    {name:'success_style',label:'Successful days',translationKey:'successfulDays',status:'met'},
-    {name:'failure_style',label:'Unsuccessful days',translationKey:'unsuccessfulDays',status:'missed'},
-    {name:'no_data_style',label:'Days without data',translationKey:'daysWithoutData',status:'no-data'},
+    {name:'success_style',translationKey:'successfulDays',status:'met'},
+    {name:'failure_style',translationKey:'unsuccessfulDays',status:'missed'},
+    {name:'no_data_style',translationKey:'daysWithoutData',status:'no-data'},
   ];
   class DailyGoalsCardEditor extends HTMLElement {
     constructor(){super();this.attachShadow({mode:'open'});this._locale=browserLocale();this._form=document.createElement('ha-form');this._form.schema=localizedFormSchema(this._locale);this._form.computeLabel=(schema)=>translate(this._locale,FORM_LABEL_KEYS[schema.name]||schema.name);
