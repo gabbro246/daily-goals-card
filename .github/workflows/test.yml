@@ -1,16 +1,38 @@
 name: Validate custom card
+
 on:
   push:
   pull_request:
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+permissions: {}
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm run check
-      - run: npm run build
+      - name: Check source and tests
+        run: npm run check
+      - name: Build card
+        run: npm run build
       - name: Verify built file matches source
         run: git diff --exit-code -- dist/daily-goals-card.js
+
+  hacs:
+    name: HACS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: plugin
