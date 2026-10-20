@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.5.1
+- Expanded single-day views now show the calculation beside the main value without repeating it.
+
 ## 0.5.0
 - Selected-day details now explain how values were calculated and appear inside the single-day progress oval.
 - Range summaries now show the daily goal in plain language.

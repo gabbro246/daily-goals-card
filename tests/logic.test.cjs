@@ -363,13 +363,17 @@ test('every day view exposes toggleable day selection',()=>{
  card._hass={locale:{language:'en'},states:{'sensor.steps':{attributes:{unit_of_measurement:'steps'}}}};
  const row={key:'2026-10-19',value:25,goal:100,status:'progress'};
  card._days=[row];
- assert.match(card._dayView(row),/class="oval progress" data-day="2026-10-19" aria-pressed="false"/);
+ const collapsedDay=card._dayView(row);
+ assert.match(collapsedDay,/class="oval progress" data-day="2026-10-19" aria-pressed="false"/);
+ assert.doesNotMatch(collapsedDay,/class="calculation"/);
  assert.match(card._renderDot(row,true),/class="mini-dot progress" data-day="2026-10-19" aria-pressed="false"/);
  card._selected=row.key;
  const selectedDay=card._dayView(row);
  assert.match(selectedDay,/aria-pressed="true"/);
  assert.match(selectedDay,/class="detail oval-detail"/);
- assert.match(selectedDay,/Highest 25 steps/);
+ assert.match(selectedDay,/class="calculation">Highest<\/span><strong class="measurement">25<\/strong><span class="unit">steps/);
+ assert.equal((selectedDay.match(/>25</g)||[]).length,1);
+ assert.doesNotMatch(selectedDay,/<strong>Highest 25 steps<\/strong>/);
  assert.match(selectedDay,/25% of goal/);
  assert.match(selectedDay,/class="detail oval-detail"[\s\S]*<\/button><\/div>$/);
  assert.doesNotMatch(selectedDay,/In progress<\/div>/);
@@ -378,6 +382,7 @@ test('every day view exposes toggleable day selection',()=>{
  const click={target:{closest:()=>({dataset:{day:row.key}})}};
  card.shadowRoot.listeners.click(click);
  assert.equal(card._selected,null);
+ assert.doesNotMatch(card._dayView(row),/class="calculation"/);
  card.shadowRoot.listeners.click(click);
  assert.equal(card._selected,row.key);
  assert.equal(Object.hasOwn(card.getGridOptions(),'rows'),false);

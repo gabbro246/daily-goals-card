@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.5.0';
+  const VERSION = '0.5.1';
   const DAY_MS = 86400000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
   // Share formatters across cards; bound the cache when locales or options change.
@@ -263,6 +263,7 @@
     .series-value.hidden,.series-cap.hidden{opacity:0}
     .oval-content{display:flex;flex-direction:column;align-items:center;position:relative;z-index:1}
     .oval-text{display:flex;align-items:baseline;gap:var(--ha-space-1,4px)}
+    .oval-text .calculation{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px;color:var(--goal-ink)}
     .oval-text .measurement{font-size:var(--ha-font-size-3xl,28px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);letter-spacing:0}
     .oval-text .unit{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);color:var(--goal-muted)}
     .strip,.month-grid,.mini-grid{display:grid;grid-template-columns:repeat(var(--day-columns,7),minmax(0,1fr));gap:var(--day-gap,var(--ha-space-2,8px) 2px);place-items:center;width:100%;max-width:var(--grid-width,500px);margin:0 auto}
@@ -681,17 +682,25 @@
       const label=`${this._formatDate(row.key)}: ${this._label(row)}. ${this._format(row.value)} ${unit}. ${this._t('goalAria',{value:this._format(row.goal),unit})}`;
       const multiCurrent=this._isMultiCurrent(row);
       const valuePath=multiCurrent?this._stackedPath(row,path):`<path class="value" d="${path}" pathLength="100" stroke-width="10" fill="none" stroke-dasharray="${pct} 100"/>`;
-      const detail=this._selected===row.key?this._selectionDetail(true):'';
-      const content=`<svg viewBox="0 0 250 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="10" fill="none"/>${valuePath}</svg><span class="oval-content"><span class="oval-text"><strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span>${detail}</span>`;
+      const selected=this._selected===row.key;
+      const calculation=selected?`<span class="calculation">${escapeHTML(this._aggregationDetail())}</span>`:'';
+      const detail=selected?this._selectionDetail(true):'';
+      const content=`<svg viewBox="0 0 250 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="10" fill="none"/>${valuePath}</svg><span class="oval-content"><span class="oval-text">${calculation}<strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span>${detail}</span>`;
       return `<div class="fill">${this._dayButton(row,`oval ${row.status}${multiCurrent?' multi-current':''}`,content,label)}</div>`;
+    }
+    _aggregationDetail(){
+      const aggregation=this._config?.aggregation||'max';
+      const detailKey=AGGREGATIONS.find(option=>option.value===aggregation)?.detailKey||'detailMax';
+      return this._t(detailKey);
     }
     _selectionDetail(inOval=false){
       const row=this._days.find(d=>d.key===this._selected);
       if(!row)return '';
-      const unit=this._unit(),aggregation=this._config?.aggregation||'max';
-      const detailKey=AGGREGATIONS.find(option=>option.value===aggregation)?.detailKey||'detailMax';
+      const meta=`${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._percentageText(row))}`;
+      if(inOval)return `<span class="detail oval-detail">${meta}</span>`;
+      const unit=this._unit();
       const amount=`${this._format(row.value)}${unit?` ${unit}`:''}`;
-      return `<span class="detail${inOval?' oval-detail':''}"><strong>${escapeHTML(this._t(detailKey))} ${escapeHTML(amount)}</strong><br>${escapeHTML(this._formatDate(row.key))} · ${escapeHTML(this._percentageText(row))}</span>`;
+      return `<span class="detail"><strong>${escapeHTML(this._aggregationDetail())} ${escapeHTML(amount)}</strong><br>${meta}</span>`;
     }
     _weekView(){
       const columns=Math.min(7,this._days.length);
