@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.6
+- Simplified hourly and monthly graph labels.
+- Kept long-range graphs in place when selecting a bar.
+- Marked minimum goals and maximum limits with directional labels.
+
 ## 0.6.5
 - Reduced minimum graph markers to a half-width dome.
 - Shortened goal summaries into one natural status line.

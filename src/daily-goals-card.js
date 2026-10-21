@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.5';
+  const VERSION = '0.6.6';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -28,7 +28,7 @@
       recorderError:'Could not read Recorder statistics: {error}', noSelection:'No selection', goalMet:'Goal met', goalMissed:'Goal missed', inProgress:'In progress', noData:'No data', goalUnavailable:'Goal unavailable', future:'Future',
       goalIsZero:'Goal is zero', ofLimit:'{value}% of limit', ofGoal:'{value}% of goal', futureDay:'Future day', remaining:'{amount} remaining', atLimit:'At the limit', overLimit:'{amount} over limit', left:'{amount} left', goalReached:'Goal reached', aboveGoal:'{amount} above goal',
       allMonths:'All months', selectMonth:'Select {month}', goalAria:'{value} {unit} goal.', show:'Show', hide:'Hide', measurementEntities:'Measurement entities',
-      showChart:'Show graph view', showCircles:'Show circle view', goalLine:'Goal', hourlyUnavailable:'No hourly data', progressChart:'Goal progress',
+      showChart:'Show graph view', showCircles:'Show circle view', goalLine:'Goal', limitLine:'Limit', hourlyUnavailable:'No hourly data', progressChart:'Goal progress',
       summaryOne:'{met} of {total} day met', summaryMany:'{met} of {total} days met', summaryMinimumOne:'{amount} or more on {met} of {total} day', summaryMinimumMany:'{amount} or more on {met} of {total} days', summaryMaximumOne:'{amount} or less on {met} of {total} day', summaryMaximumMany:'{amount} or less on {met} of {total} days', loadingHistory:'Loading history…', unavailable:'Unavailable', dailyTotal:'Daily total',
       directionMin:'At least (minimum)', directionMax:'At most (maximum)',
       formEntities:'Measurement entities', formTitle:'Card title (optional)', formIcon:'Icon (optional)', formGoal:'Fixed daily goal (ignored when goal entity is set)', formGoalEntity:'Daily goal entity (optional)', formDirection:'Goal rule', formAggregation:'Measurement aggregation', formWeekStart:'Start week on Sunday', formLegend:'Show measurement legend', formUnit:'Unit override (optional)', formCollectionKey:'Energy date collection key (optional)',
@@ -50,7 +50,7 @@
       recorderError:'Recorder-Statistiken konnten nicht gelesen werden: {error}', noSelection:'Keine Auswahl', goalMet:'Ziel erreicht', goalMissed:'Ziel verfehlt', inProgress:'In Bearbeitung', noData:'Keine Daten', goalUnavailable:'Ziel nicht verfügbar', future:'Zukünftig',
       goalIsZero:'Das Ziel ist null', ofLimit:'{value} % des Limits', ofGoal:'{value} % des Ziels', futureDay:'Zukünftiger Tag', remaining:'{amount} verbleibend', atLimit:'Am Limit', overLimit:'{amount} über dem Limit', left:'Noch {amount}', goalReached:'Ziel erreicht', aboveGoal:'{amount} über dem Ziel',
       allMonths:'Alle Monate', selectMonth:'{month} auswählen', goalAria:'Ziel: {value} {unit}.', show:'Einblenden', hide:'Ausblenden', measurementEntities:'Messentitäten',
-      showChart:'Diagrammansicht anzeigen', showCircles:'Kreisansicht anzeigen', goalLine:'Ziel', hourlyUnavailable:'Keine Stundendaten', progressChart:'Zielfortschritt',
+      showChart:'Diagrammansicht anzeigen', showCircles:'Kreisansicht anzeigen', goalLine:'Ziel', limitLine:'Limit', hourlyUnavailable:'Keine Stundendaten', progressChart:'Zielfortschritt',
       summaryOne:'{met} von {total} Tag erreicht', summaryMany:'{met} von {total} Tagen erreicht', summaryMinimumOne:'Mindestens {amount} an {met} von {total} Tag', summaryMinimumMany:'Mindestens {amount} an {met} von {total} Tagen', summaryMaximumOne:'Höchstens {amount} an {met} von {total} Tag', summaryMaximumMany:'Höchstens {amount} an {met} von {total} Tagen', loadingHistory:'Verlauf wird geladen…', unavailable:'Nicht verfügbar', dailyTotal:'Tagessumme',
       directionMin:'Mindestens (Minimum)', directionMax:'Höchstens (Maximum)',
       formEntities:'Messentitäten', formTitle:'Kartentitel (optional)', formIcon:'Symbol (optional)', formGoal:'Festes Tagesziel (wird bei festgelegter Zielentität ignoriert)', formGoalEntity:'Entität für das Tagesziel (optional)', formDirection:'Zielregel', formAggregation:'Messwertberechnung', formWeekStart:'Woche am Sonntag beginnen', formLegend:'Messwertlegende anzeigen', formUnit:'Einheit überschreiben (optional)', formCollectionKey:'Schlüssel der Energie-Zeitraumauswahl (optional)',
@@ -395,7 +395,9 @@
     .chart-canvas{position:relative;height:178px;min-width:0;margin:0 auto}
     .status-chart{position:absolute;inset:0 0 auto;width:100%;height:150px;overflow:visible}
     .chart-goal{fill:none;stroke:var(--goal-unavailable);stroke-width:3;stroke-dasharray:4 8;stroke-linecap:round;vector-effect:non-scaling-stroke}
-    .chart-goal-label{position:absolute;right:2px;z-index:2;transform:translateY(-100%);padding-inline-start:4px;background:var(--card-background-color,#fff);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;pointer-events:none}
+    .chart-goal-label{position:absolute;right:2px;z-index:2;padding-inline-start:4px;background:var(--card-background-color,#fff);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;pointer-events:none}
+    .chart-goal-label.minimum{transform:translateY(-100%)}
+    .chart-goal-label.maximum{transform:none}
     .chart-axis-label{position:absolute;top:157px;transform:translateX(-50%);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;white-space:nowrap;pointer-events:none}
     .chart-axis-label.start{transform:none}
     .chart-axis-label.end{transform:translateX(-100%)}
@@ -430,6 +432,7 @@
       this.shadowRoot.innerHTML=`<style>${css}</style><ha-card><div id="content"></div></ha-card>`;
       this.shadowRoot.addEventListener('click', (e)=>{
         const btn=e.target.closest('[data-day],[data-month],[data-toggle-entity],[data-more-info],[data-view-toggle]');if(!btn)return;
+        const chartScrollLeft=btn.dataset.day?this.shadowRoot.querySelector?.('.chart-scroll.scrollable')?.scrollLeft:undefined;
         if(btn.dataset.viewToggle!==undefined){
           this._viewMode=this._viewMode==='chart'?'circles':'chart';
           this._render();
@@ -445,6 +448,7 @@
         if(btn.dataset.day) this._selected=this._selected===btn.dataset.day?null:btn.dataset.day;
         if(btn.dataset.month){this._selectedMonth=btn.dataset.month==='all' ? null : btn.dataset.month;this._selected=null;}
         this._render();
+        if(chartScrollLeft!==undefined){const chartScroll=this.shadowRoot.querySelector?.('.chart-scroll.scrollable');if(chartScroll)chartScroll.scrollLeft=chartScrollLeft;}
       });
     }
     static getConfigElement(){return document.createElement('daily-goals-card-editor')}
@@ -854,7 +858,7 @@
     }
     _chartDateLabel(row,index,count,singleMonth=false){
       if(count<=8)return this._weekday(row.key);
-      if(count<=31&&singleMonth)return this._dateLabel(row.key,{day:'numeric'});
+      if(count<=31&&singleMonth)return this._dateLabel(row.key,index===0?{day:'numeric',month:'short'}:{day:'numeric'});
       if(count<=62)return this._dateLabel(row.key,{day:'numeric',month:'short'});
       const includeYear=index===0||row.key.slice(5)==='01-01';
       return this._dateLabel(row.key,{month:'short',...(includeYear?{year:'2-digit'}:{})});
@@ -901,7 +905,8 @@
       const labelIndexes=this._chartLabelIndexes(rows),singleMonth=rows[0]?.key.slice(0,7)===rows.at(-1)?.key.slice(0,7);
       const labels=labelIndexes.map((index,labelIndex)=>{const edge=count>8?(labelIndex===0?' start':labelIndex===labelIndexes.length-1?' end':''):'';return `<span class="chart-axis-label${edge}" style="left:${100*(index+.5)/count}%">${escapeHTML(this._chartDateLabel(rows[index],index,count,singleMonth))}</span>`}).join('');
       const goal=goalPath?`<path class="chart-goal" d="${goalPath}"/>`:'';
-      const goalLabel=lastGoalY===null?'':`<span class="chart-goal-label" style="top:${Math.max(12,lastGoalY-3)}px">${escapeHTML(this._t('goalLine'))}</span>`;
+      const maximum=this._config?.direction==='max';
+      const goalLabel=lastGoalY===null?'':`<span class="chart-goal-label ${maximum?'maximum':'minimum'}" style="top:${maximum?lastGoalY+3:Math.max(12,lastGoalY-3)}px">${escapeHTML(`${this._t(maximum?'limitLine':'goalLine')} ${maximum?'▼':'▲'}`)}</span>`;
       const canvasWidth=count>92?Math.max(500,Math.ceil(28+count*(barWidth+.5))):null;
       const style=canvasWidth?` style="width:${canvasWidth}px"`:'';
       const scrollClass=canvasWidth?'chart-scroll scrollable':'chart-scroll';
@@ -928,8 +933,9 @@
       if(points.length===1)path+=` l .01 0`;
       const goalY=row.goal===null?null:y(row.goal);
       const goal=goalY===null?'':`<path class="chart-goal" d="M .5 ${goalY} H 99.5"/>`;
-      const goalLabel=goalY===null?'':`<span class="chart-goal-label" style="top:${Math.max(12,goalY-3)}px">${escapeHTML(this._t('goalLine'))}</span>`;
-      const formatTime=time=>formatter('DateTimeFormat',this._locale(),{timeZone:this._tz(),hour:'2-digit',minute:'2-digit'}).format(new Date(time));
+      const maximum=this._config?.direction==='max';
+      const goalLabel=goalY===null?'':`<span class="chart-goal-label ${maximum?'maximum':'minimum'}" style="top:${maximum?goalY+3:Math.max(12,goalY-3)}px">${escapeHTML(`${this._t(maximum?'limitLine':'goalLine')} ${maximum?'▼':'▲'}`)}</span>`;
+      const formatTime=time=>formatter('DateTimeFormat',this._locale(),{timeZone:this._tz(),hour:'numeric'}).format(new Date(time));
       const labels=[0,.25,.5,.75].map(fraction=>`<span class="chart-axis-label${fraction===0?' start':''}" style="left:${100*fraction}%">${escapeHTML(formatTime(start+(end-start)*fraction))}</span>`).join('');
       const hit=this._chartDayButton(row,0,100);
       const content=`<div class="chart-canvas" aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${goal}<path class="chart-line chart-bar ${row.status}" d="${path}"/></svg>${goalLabel}${labels}${hit}</div>`;

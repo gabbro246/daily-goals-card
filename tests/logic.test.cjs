@@ -430,6 +430,7 @@ test('German translations cover the card and visual editor',()=>{
  assert.equal(L.translate('de-DE','goalMet'),'Ziel erreicht');
  assert.equal(L.translate('de','ofGoal',{value:'25'}),'25 % des Ziels');
  assert.equal(L.translate('fr','goalMet'),'Goal met');
+ assert.equal(L.translate('de','limitLine'),'Limit');
  assert.throws(()=>L.makeKeys('2024-01-01','2026-12-31','de'),/höchstens 750 Tagen/);
 
  const options=L.localizedAggregationOptions('de-AT');
@@ -652,6 +653,8 @@ test('graph view stays focused on goal status and uses the native-style header s
  const card=new (elements.get('daily-goals-card'))();
  assert.match(card.shadowRoot.innerHTML,/\.chart-goal\{fill:none;stroke:var\(--goal-unavailable\);stroke-width:3;stroke-dasharray:4 8;stroke-linecap:round/);
  assert.match(card.shadowRoot.innerHTML,/\.chart-scroll\{[^}]*overflow-x:hidden/);
+ assert.match(card.shadowRoot.innerHTML,/\.chart-goal-label\.minimum\{transform:translateY\(-100%\)\}/);
+ assert.match(card.shadowRoot.innerHTML,/\.chart-goal-label\.maximum\{transform:none\}/);
  const root={innerHTML:'',querySelector(){return null}};
  card.shadowRoot.getElementById=()=>root;
  card._config={entity:'sensor.steps',goal:100,unit:'steps'};
@@ -695,12 +698,22 @@ test('graph view stays focused on goal status and uses the native-style header s
  assert.match(missingChart,/class="chart-cap no-data chart-missing"[^>]*y1="145"[^>]*y2="145"[^>]*stroke-width="10"[^>]*clip-path="url\(#chart-missing-clip-0\)"/);
  assert.match(missingChart,/class="chart-goal" d="M 0\.5 [^"]+H 99\.5"/);
 
+ assert.match(missingChart,/class="chart-goal-label minimum"[^>]*>Goal ▲<\/span>/);
+ const minimumLabelTop=Number(missingChart.match(/chart-goal-label minimum" style="top:([\d.]+)px/)[1]);
+ card._config.direction='max';
+ const limitChart=card._barChart();
+ assert.match(limitChart,/class="chart-goal-label maximum"[^>]*>Limit ▼<\/span>/);
+ const maximumLabelTop=Number(limitChart.match(/chart-goal-label maximum" style="top:([\d.]+)px/)[1]);
+ assert.ok(maximumLabelTop>minimumLabelTop);
+ card._config.direction='min';
  card._days=L.makeKeys('2026-10-01','2026-10-31').map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
  const monthChart=card._barChart();
  assert.equal((monthChart.match(/class="chart-axis-label/g)||[]).length,4);
  assert.match(monthChart,/class="chart-axis-label start"/);
  assert.match(monthChart,/class="chart-axis-label end"/);
- assert.doesNotMatch(monthChart,/>[^<]*Oct[^<]*<\/span>/);
+ assert.match(monthChart,/class="chart-axis-label start"[^>]*>[^<]*Oct[^<]*<\/span>/);
+ const monthLabels=[...monthChart.matchAll(/class="chart-axis-label[^"]*"[^>]*>([^<]*)<\/span>/g)].map(match=>match[1]);
+ assert.equal(monthLabels.slice(1).some(label=>label.includes('Oct')),false);
 
  card._days=L.makeKeys(L.keyPlus(today,-31),today).map(key=>({key,value:50,goal:100,status:key===today?'progress':'missed',parts:[]}));
  const longChart=card._barChart();
@@ -722,6 +735,15 @@ test('graph view stays focused on goal status and uses the native-style header s
  card._days=L.makeKeys(L.keyPlus(today,-364),today).map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
  const yearChart=card._barChart();
  assert.match(yearChart,/class="chart-canvas" style="width:758px"/);
+
+ let activeScroll={scrollLeft:286};
+ card.shadowRoot.querySelector=selector=>selector==='.chart-scroll.scrollable'?activeScroll:null;
+ const originalRender=card._render;
+ card._render=()=>{activeScroll={scrollLeft:0}};
+ card.shadowRoot.listeners.click({target:{closest(){return {dataset:{day:today}}}}});
+ assert.equal(activeScroll.scrollLeft,286);
+ card._render=originalRender;
+ card.shadowRoot.querySelector=()=>null;
 
  card._period={start:L.keyPlus(today,-1),end:today};
  card.shadowRoot.listeners.click({target:{closest(){return {dataset:{viewToggle:''}}}}});
@@ -758,8 +780,14 @@ test('single-day graph requests hourly statistics and renders one simple total l
  assert.match(graph,/class="chart-goal"/);
  assert.match(graph,/data-day="2026-10-20"/);
  assert.doesNotMatch(graph,/legend|chart-grid/);
+ assert.match(graph,/>6(?: |\u202f)AM<\/span>/);
+ assert.doesNotMatch(graph,/:00/);
 
  card._viewMode='chart';
+ assert.match(graph,/class="chart-goal-label minimum"[^>]*>Goal ▲<\/span>/);
+ card._config.direction='max';
+ assert.match(card._lineChart(card._days[0]),/class="chart-goal-label maximum"[^>]*>Limit ▼<\/span>/);
+ card._config.direction='min';
  card._syncPeriod=()=>{};
  card._observeSize=()=>{};
  let reloads=0;
