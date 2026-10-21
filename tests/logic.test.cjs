@@ -405,7 +405,7 @@ test('card state uses remaining amount for a day and completion count for ranges
   {key:'2020-01-03',status:'progress'},
   {key:'2999-01-01',status:'future'},
  ];
- assert.equal(card._stateText('week'),'1 of 3 days met · Goal: 100 steps or less');
+ assert.equal(card._stateText('week'),'100 steps or less on 1 of 3 days');
 });
 test('selected-day details identify every aggregation and summaries show changing goals',()=>{
  const Card=elements.get('daily-goals-card');
@@ -422,9 +422,9 @@ test('selected-day details identify every aggregation and summaries show changin
   {key:'2020-01-01',value:10,goal:20,status:'missed'},
   {key:'2020-01-02',value:30,goal:25,status:'met'},
  ];
- assert.equal(card._summaryText(),'1 of 2 days met · Daily goals: 20–25 ms or more');
+ assert.equal(card._summaryText(),'20–25 ms or more on 1 of 2 days');
  card._config.direction='max';
- assert.equal(card._summaryText(),'1 of 2 days met · Daily goals: 20–25 ms or less');
+ assert.equal(card._summaryText(),'20–25 ms or less on 1 of 2 days');
 });
 test('German translations cover the card and visual editor',()=>{
  assert.equal(L.translate('de-DE','goalMet'),'Ziel erreicht');
@@ -453,7 +453,7 @@ test('German translations cover the card and visual editor',()=>{
  assert.equal(card._label(card._days[1]),'Ziel erreicht');
  assert.equal(card._stateText('day'),'Noch 75 Schritte');
  assert.equal(card._percentageText(card._days[0]),'25 % des Ziels');
- assert.equal(card._stateText('week'),'1 von 2 Tagen erreicht · Ziel: mindestens 100 Schritte');
+ assert.equal(card._stateText('week'),'Mindestens 100 Schritte an 1 von 2 Tagen');
  card._days=[{key:L.dateParts(new Date(),'UTC'),value:50,goal:100,status:'progress',parts:[{entity:'sensor.one',value:30},{entity:'sensor.two',value:20}]}];
  card._selected=card._days[0].key;
  card._config.aggregation='mean';
@@ -678,8 +678,10 @@ test('graph view stays focused on goal status and uses the native-style header s
  const stackedSegments=[...stackedChart.matchAll(/class="chart-stack" x1="[^"]+" y1="([^"]+)" x2="[^"]+" y2="([^"]+)"/g)];
  assert.equal(stackedSegments.length,2);
  assert.equal((stackedChart.match(/class="chart-stack chart-cap/g)||[]).length,1);
+ assert.match(stackedChart,/<clipPath id="chart-stack-clip-0"><rect[^>]*height="[^"]+"\/><\/clipPath>/);
  assert.equal(stackedSegments[0][2],stackedSegments[1][1]);
- assert.ok(Number(stackedSegments[1][1])-Number(stackedSegments[1][2])>=4.999);
+ assert.ok(Number(stackedSegments[1][1])-Number(stackedSegments[1][2])>0);
+ assert.ok(Number(stackedSegments[1][1])-Number(stackedSegments[1][2])<5);
  assert.match(stackedChart,new RegExp(`class="chart-stack chart-cap[^"]*" x1="[^"]+" y1="${stackedSegments[1][2]}"[^>]+y2="${stackedSegments[1][2]}"`));
 
  card._config={entity:'sensor.steps',goal:100,unit:'steps'};
@@ -688,9 +690,9 @@ test('graph view stays focused on goal status and uses the native-style header s
   {key:L.keyPlus(today,1),value:null,goal:100,status:'future',parts:[]},
  ];
  const missingChart=card._barChart();
- assert.equal((missingChart.match(/chart-missing/g)||[]).length,2);
- assert.match(missingChart,/class="chart-bar no-data chart-missing"[^>]*y1="145"[^>]*y2="140"[^>]*stroke-width="10"/);
- assert.match(missingChart,/class="chart-cap no-data chart-missing"[^>]*y1="140"[^>]*y2="140"[^>]*stroke-width="10"/);
+ assert.equal((missingChart.match(/class="chart-cap no-data chart-missing"/g)||[]).length,1);
+ assert.match(missingChart,/<clipPath id="chart-missing-clip-0"><rect[^>]*height="245"\/><\/clipPath>/);
+ assert.match(missingChart,/class="chart-cap no-data chart-missing"[^>]*y1="145"[^>]*y2="145"[^>]*stroke-width="10"[^>]*clip-path="url\(#chart-missing-clip-0\)"/);
  assert.match(missingChart,/class="chart-goal" d="M 0\.5 [^"]+H 99\.5"/);
 
  card._days=L.makeKeys('2026-10-01','2026-10-31').map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));

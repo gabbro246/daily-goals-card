@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.5
+- Reduced minimum graph markers to a half-width dome.
+- Shortened goal summaries into one natural status line.
+
 ## 0.6.4
 - Made tiny stacked values and missing-data days use a flat-bottomed minimum marker.
 - Rounded both ends of the goal line.

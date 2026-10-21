@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.4';
+  const VERSION = '0.6.5';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -29,7 +29,7 @@
       goalIsZero:'Goal is zero', ofLimit:'{value}% of limit', ofGoal:'{value}% of goal', futureDay:'Future day', remaining:'{amount} remaining', atLimit:'At the limit', overLimit:'{amount} over limit', left:'{amount} left', goalReached:'Goal reached', aboveGoal:'{amount} above goal',
       allMonths:'All months', selectMonth:'Select {month}', goalAria:'{value} {unit} goal.', show:'Show', hide:'Hide', measurementEntities:'Measurement entities',
       showChart:'Show graph view', showCircles:'Show circle view', goalLine:'Goal', hourlyUnavailable:'No hourly data', progressChart:'Goal progress',
-      summaryOne:'{met} of {total} day met', summaryMany:'{met} of {total} days met', goalMinimumSummary:'Goal: {amount} or more', goalMaximumSummary:'Goal: {amount} or less', dailyGoalsMinimumSummary:'Daily goals: {amount} or more', dailyGoalsMaximumSummary:'Daily goals: {amount} or less', loadingHistory:'Loading history…', unavailable:'Unavailable', dailyTotal:'Daily total',
+      summaryOne:'{met} of {total} day met', summaryMany:'{met} of {total} days met', summaryMinimumOne:'{amount} or more on {met} of {total} day', summaryMinimumMany:'{amount} or more on {met} of {total} days', summaryMaximumOne:'{amount} or less on {met} of {total} day', summaryMaximumMany:'{amount} or less on {met} of {total} days', loadingHistory:'Loading history…', unavailable:'Unavailable', dailyTotal:'Daily total',
       directionMin:'At least (minimum)', directionMax:'At most (maximum)',
       formEntities:'Measurement entities', formTitle:'Card title (optional)', formIcon:'Icon (optional)', formGoal:'Fixed daily goal (ignored when goal entity is set)', formGoalEntity:'Daily goal entity (optional)', formDirection:'Goal rule', formAggregation:'Measurement aggregation', formWeekStart:'Start week on Sunday', formLegend:'Show measurement legend', formUnit:'Unit override (optional)', formCollectionKey:'Energy date collection key (optional)',
       successfulDays:'Successful days', unsuccessfulDays:'Unsuccessful days', daysWithoutData:'Days without data', filled:'Filled', outlined:'Outlined', symbols:'Symbols', dayMarkerStyles:'Day marker styles',
@@ -51,7 +51,7 @@
       goalIsZero:'Das Ziel ist null', ofLimit:'{value} % des Limits', ofGoal:'{value} % des Ziels', futureDay:'Zukünftiger Tag', remaining:'{amount} verbleibend', atLimit:'Am Limit', overLimit:'{amount} über dem Limit', left:'Noch {amount}', goalReached:'Ziel erreicht', aboveGoal:'{amount} über dem Ziel',
       allMonths:'Alle Monate', selectMonth:'{month} auswählen', goalAria:'Ziel: {value} {unit}.', show:'Einblenden', hide:'Ausblenden', measurementEntities:'Messentitäten',
       showChart:'Diagrammansicht anzeigen', showCircles:'Kreisansicht anzeigen', goalLine:'Ziel', hourlyUnavailable:'Keine Stundendaten', progressChart:'Zielfortschritt',
-      summaryOne:'{met} von {total} Tag erreicht', summaryMany:'{met} von {total} Tagen erreicht', goalMinimumSummary:'Ziel: mindestens {amount}', goalMaximumSummary:'Ziel: höchstens {amount}', dailyGoalsMinimumSummary:'Tagesziele: mindestens {amount}', dailyGoalsMaximumSummary:'Tagesziele: höchstens {amount}', loadingHistory:'Verlauf wird geladen…', unavailable:'Nicht verfügbar', dailyTotal:'Tagessumme',
+      summaryOne:'{met} von {total} Tag erreicht', summaryMany:'{met} von {total} Tagen erreicht', summaryMinimumOne:'Mindestens {amount} an {met} von {total} Tag', summaryMinimumMany:'Mindestens {amount} an {met} von {total} Tagen', summaryMaximumOne:'Höchstens {amount} an {met} von {total} Tag', summaryMaximumMany:'Höchstens {amount} an {met} von {total} Tagen', loadingHistory:'Verlauf wird geladen…', unavailable:'Nicht verfügbar', dailyTotal:'Tagessumme',
       directionMin:'Mindestens (Minimum)', directionMax:'Höchstens (Maximum)',
       formEntities:'Messentitäten', formTitle:'Kartentitel (optional)', formIcon:'Symbol (optional)', formGoal:'Festes Tagesziel (wird bei festgelegter Zielentität ignoriert)', formGoalEntity:'Entität für das Tagesziel (optional)', formDirection:'Zielregel', formAggregation:'Messwertberechnung', formWeekStart:'Woche am Sonntag beginnen', formLegend:'Messwertlegende anzeigen', formUnit:'Einheit überschreiben (optional)', formCollectionKey:'Schlüssel der Energie-Zeitraumauswahl (optional)',
       successfulDays:'Erfolgreiche Tage', unsuccessfulDays:'Nicht erfolgreiche Tage', daysWithoutData:'Tage ohne Daten', filled:'Ausgefüllt', outlined:'Umrandet', symbols:'Symbole', dayMarkerStyles:'Darstellung der Tagesmarkierungen',
@@ -877,8 +877,8 @@
         if(row.status==='future')return '';
         if(row.value===null){
           if(row.status!=='no-data')return '';
-          const capY=base-barWidth/2,marker=`<line class="chart-bar no-data chart-missing" x1="${x}" y1="${base}" x2="${x}" y2="${capY}" stroke-width="${barWidth}"/>`;
-          return marker+`<line class="chart-cap no-data chart-missing" x1="${x}" y1="${capY}" x2="${x}" y2="${capY}" stroke-width="${barWidth}"/>`;
+          const clipId=`chart-missing-clip-${index}`;
+          return `<clipPath id="${clipId}"><rect x="-100" y="-100" width="300" height="${base+100}"/></clipPath><line class="chart-cap no-data chart-missing" x1="${x}" y1="${base}" x2="${x}" y2="${base}" stroke-width="${barWidth}" clip-path="url(#${clipId})"/>`;
         }
         if(this._isMultiCurrent(row)){
           const parts=row.parts||[];
@@ -886,10 +886,9 @@
           let total=0,cap='';
           const segments=parts.map((part,partIndex)=>{
             const value=Math.max(0,part.value??0),from=y(total),to=y(total+value);total+=value;
-            const displayTo=partIndex===topPartIndex?Math.min(to,from-barWidth/2):to;
             const hidden=this._hiddenEntities.has(part.entity)?' hidden':'';
-            const segment=`<line class="chart-stack${hidden}" x1="${x}" y1="${from}" x2="${x}" y2="${displayTo}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
-            if(partIndex===topPartIndex)cap=`<line class="chart-stack chart-cap${hidden}" x1="${x}" y1="${displayTo}" x2="${x}" y2="${displayTo}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
+            const segment=`<line class="chart-stack${hidden}" x1="${x}" y1="${from}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
+            if(partIndex===topPartIndex){const clipId=`chart-stack-clip-${index}`;cap=`<clipPath id="${clipId}"><rect x="-100" y="-100" width="300" height="${from+100}"/></clipPath><line class="chart-stack chart-cap${hidden}" x1="${x}" y1="${to}" x2="${x}" y2="${to}" stroke-width="${barWidth}" clip-path="url(#${clipId})" style="stroke:${this._seriesColor(partIndex)}"/>`;}
             return segment;
           }).join('');
           return segments+cap;
@@ -981,8 +980,8 @@
       const values=goals.length===1?this._format(goals[0]):`${this._format(goals[0])}–${this._format(goals.at(-1))}`;
       const amount=`${values}${unit?` ${unit}`:''}`;
       const maximum=this._config?.direction==='max';
-      const goal=this._t(goals.length===1?(maximum?'goalMaximumSummary':'goalMinimumSummary'):(maximum?'dailyGoalsMaximumSummary':'dailyGoalsMinimumSummary'),{amount});
-      return `${summary} · ${goal}`;
+      const key=`summary${maximum?'Maximum':'Minimum'}${evaluated.length===1?'One':'Many'}`;
+      return this._t(key,{amount,met,total:evaluated.length});
     }
     _stateText(kind){
       if(this._loading)return this._t('loadingHistory');
