@@ -20,6 +20,10 @@ The layout changes automatically for the selected period. Tap a day for its deta
 
 ![Daily goals year view](docs/year-view.png)
 
+### Switch between circles and a graph
+
+Use the button in the top-right corner to switch views. Date ranges show simple outcome-colored bars against the daily goal, while a single selected day shows hourly progress as a line. Tap a bar or the line to show the same daily details as the circle view.
+
 ## Install with HACS
 
 Make sure you have [HACS](https://hacs.xyz/) installed in Home Assistant.

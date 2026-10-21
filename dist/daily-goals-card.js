@@ -3,8 +3,10 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.5.1';
+  const VERSION = '0.6.0';
   const DAY_MS = 86400000;
+  const HOUR_MS = 3600000;
+  const VIEW_STORAGE_KEY = 'daily-goals-card-view';
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
   // Share formatters across cards; bound the cache when locales or options change.
   const formatters = new Map();
@@ -27,6 +29,7 @@
       recorderError:'Could not read Recorder statistics: {error}', noSelection:'No selection', goalMet:'Goal met', goalMissed:'Goal missed', inProgress:'In progress', noData:'No data', goalUnavailable:'Goal unavailable', future:'Future',
       goalIsZero:'Goal is zero', ofLimit:'{value}% of limit', ofGoal:'{value}% of goal', futureDay:'Future day', remaining:'{amount} remaining', atLimit:'At the limit', overLimit:'{amount} over limit', left:'{amount} left', goalReached:'Goal reached', aboveGoal:'{amount} above goal',
       allMonths:'All months', selectMonth:'Select {month}', goalAria:'{value} {unit} goal.', show:'Show', hide:'Hide', measurementEntities:'Measurement entities',
+      showChart:'Show graph view', showCircles:'Show circle view', goalLine:'Goal', hourlyUnavailable:'No hourly data', progressChart:'Goal progress',
       summaryOne:'{met} of {total} day met', summaryMany:'{met} of {total} days met', goalMinimumSummary:'Goal: {amount} or more', goalMaximumSummary:'Goal: {amount} or less', dailyGoalsMinimumSummary:'Daily goals: {amount} or more', dailyGoalsMaximumSummary:'Daily goals: {amount} or less', loadingHistory:'Loading history…', unavailable:'Unavailable', dailyTotal:'Daily total',
       directionMin:'At least (minimum)', directionMax:'At most (maximum)',
       formEntities:'Measurement entities', formTitle:'Card title (optional)', formIcon:'Icon (optional)', formGoal:'Fixed daily goal (ignored when goal entity is set)', formGoalEntity:'Daily goal entity (optional)', formDirection:'Goal rule', formAggregation:'Measurement aggregation', formWeekStart:'Start week on Sunday', formLegend:'Show measurement legend', formUnit:'Unit override (optional)', formCollectionKey:'Energy date collection key (optional)',
@@ -48,6 +51,7 @@
       recorderError:'Recorder-Statistiken konnten nicht gelesen werden: {error}', noSelection:'Keine Auswahl', goalMet:'Ziel erreicht', goalMissed:'Ziel verfehlt', inProgress:'In Bearbeitung', noData:'Keine Daten', goalUnavailable:'Ziel nicht verfügbar', future:'Zukünftig',
       goalIsZero:'Das Ziel ist null', ofLimit:'{value} % des Limits', ofGoal:'{value} % des Ziels', futureDay:'Zukünftiger Tag', remaining:'{amount} verbleibend', atLimit:'Am Limit', overLimit:'{amount} über dem Limit', left:'Noch {amount}', goalReached:'Ziel erreicht', aboveGoal:'{amount} über dem Ziel',
       allMonths:'Alle Monate', selectMonth:'{month} auswählen', goalAria:'Ziel: {value} {unit}.', show:'Einblenden', hide:'Ausblenden', measurementEntities:'Messentitäten',
+      showChart:'Diagrammansicht anzeigen', showCircles:'Kreisansicht anzeigen', goalLine:'Ziel', hourlyUnavailable:'Keine Stundendaten', progressChart:'Zielfortschritt',
       summaryOne:'{met} von {total} Tag erreicht', summaryMany:'{met} von {total} Tagen erreicht', goalMinimumSummary:'Ziel: mindestens {amount}', goalMaximumSummary:'Ziel: höchstens {amount}', dailyGoalsMinimumSummary:'Tagesziele: mindestens {amount}', dailyGoalsMaximumSummary:'Tagesziele: höchstens {amount}', loadingHistory:'Verlauf wird geladen…', unavailable:'Nicht verfügbar', dailyTotal:'Tagessumme',
       directionMin:'Mindestens (Minimum)', directionMax:'Höchstens (Maximum)',
       formEntities:'Messentitäten', formTitle:'Kartentitel (optional)', formIcon:'Symbol (optional)', formGoal:'Festes Tagesziel (wird bei festgelegter Zielentität ignoriert)', formGoalEntity:'Entität für das Tagesziel (optional)', formDirection:'Zielregel', formAggregation:'Messwertberechnung', formWeekStart:'Woche am Sonntag beginnen', formLegend:'Messwertlegende anzeigen', formUnit:'Einheit überschreiben (optional)', formCollectionKey:'Schlüssel der Energie-Zeitraumauswahl (optional)',
@@ -156,6 +160,65 @@
     }
     return values;
   };
+  const hourlyProgressFromStats = (response, entities, aggregation) => {
+    const progress = entities.map(entity => {
+      const rows=(response?.[entity]||[]).map(row=>({time:new Date(row.start).getTime(),value:numeric(row[aggregation])}))
+        .filter(row=>Number.isFinite(row.time)&&row.value!==null).sort((a,b)=>a.time-b.time);
+      const values=new Map();
+      let running=null,sum=0,count=0;
+      for(const row of rows){
+        if(aggregation==='change')running=(running??0)+row.value;
+        else if(aggregation==='max')running=running===null?row.value:Math.max(running,row.value);
+        else if(aggregation==='min')running=running===null?row.value:Math.min(running,row.value);
+        else if(aggregation==='mean'){sum+=row.value;count++;running=sum/count}
+        else running=row.value;
+        values.set(row.time+HOUR_MS,running);
+      }
+      return values;
+    });
+    const times=[...new Set(progress.flatMap(values=>[...values.keys()]))].sort((a,b)=>a-b);
+    const carry=entities.map(()=>null);
+    const points=[];
+    for(const time of times){
+      progress.forEach((values,index)=>{if(values.has(time))carry[index]=values.get(time)});
+      if(carry.some(value=>value===null))continue;
+      const parts=entities.map((entity,index)=>({entity,value:carry[index]}));
+      points.push({time,value:totalParts(parts),parts});
+    }
+    return points;
+  };
+  const hourlyProgressFromHistory = (byEntity, entities, aggregation, start, end) => {
+    const series=entities.map(entity=>(byEntity.get(entity)||[]).map(state=>({
+      time:new Date(state.last_updated||state.last_changed).getTime(),value:numeric(state.state),
+    })).filter(sample=>Number.isFinite(sample.time)&&sample.value!==null).sort((a,b)=>a.time-b.time));
+    const states=series.map(samples=>{
+      let pos=0,previous=null;
+      while(pos<samples.length&&(samples[pos].time<start||(aggregation==='change'&&samples[pos].time===start))){
+        if(aggregation==='change')previous=samples[pos].value;
+        pos++;
+      }
+      return {samples,pos,previous,running:null,sum:0,count:0};
+    });
+    const points=[];
+    for(let time=start+HOUR_MS;time<=end;time+=HOUR_MS){
+      for(const state of states){
+        while(state.pos<state.samples.length&&state.samples[state.pos].time<time){
+          const value=state.samples[state.pos++].value;
+          if(aggregation==='change'){
+            if(state.previous!==null)state.running=(state.running??0)+(value>=state.previous?value-state.previous:value);
+            state.previous=value;
+          }else if(aggregation==='max')state.running=state.running===null?value:Math.max(state.running,value);
+          else if(aggregation==='min')state.running=state.running===null?value:Math.min(state.running,value);
+          else if(aggregation==='mean'){state.sum+=value;state.count++;state.running=state.sum/state.count}
+          else state.running=value;
+        }
+      }
+      if(states.some(state=>state.running===null))continue;
+      const parts=entities.map((entity,index)=>({entity,value:states[index].running}));
+      points.push({time,value:totalParts(parts),parts});
+    }
+    return points;
+  };
   const dailyFromHistory = (states, aggregation, tz, start, end) => {
     // Recorder history records the initial state plus changes during the period.
     // Do not treat a carried-forward state as evidence of metric activity.
@@ -225,6 +288,11 @@
     for (const name of names) if(connection[name]?.start) return connection[name];
     return null;
   };
+  const chartBarWidth = (count) => count<=8?10:count<=31?3:1.5;
+  const storedView = () => {
+    try{return window.localStorage?.getItem(VIEW_STORAGE_KEY)==='chart'?'chart':'circles'}catch(_err){return 'circles'}
+  };
+  const storeView = (view) => {try{window.localStorage?.setItem(VIEW_STORAGE_KEY,view)}catch(_err){}};
   const css = `
     :host {
       display:block;
@@ -247,6 +315,8 @@
     .header-icon{display:grid;place-items:center;width:36px;height:36px;flex:0 0 36px;border-radius:var(--ha-border-radius-pill,18px);background:var(--goal-icon-background);color:var(--goal-color)}
     .header-icon ha-state-icon{--mdc-icon-size:24px}
     .header-info{min-width:0;flex:1}
+    .view-toggle{flex:0 0 auto;color:var(--goal-muted);--ha-icon-button-size:48px;margin-inline-end:-6px}
+    .view-toggle ha-icon{--mdc-icon-size:24px}
     .name{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .subtitle{color:var(--goal-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .body{padding:var(--ha-space-3,12px) 10px 10px;min-width:0}
@@ -325,6 +395,25 @@
     .legend-label{max-width:150px;color:var(--goal-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .legend-value{margin-inline-start:var(--ha-space-1,4px);color:var(--goal-muted);white-space:nowrap}
     .legend-toggle:focus-visible,.legend-label:focus-visible{outline:2px solid var(--goal-focus);outline-offset:1px;border-radius:var(--ha-border-radius-sm,4px)}
+    .chart-scroll{width:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-inline:contain}
+    .chart-canvas{position:relative;height:178px;min-width:0;margin:0 auto}
+    .status-chart{position:absolute;inset:0 0 auto;width:100%;height:150px;overflow:visible}
+    .chart-goal{fill:none;stroke:var(--goal-muted);stroke-width:2;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;opacity:.7}
+    .chart-goal-label{position:absolute;right:2px;z-index:2;transform:translateY(-100%);padding-inline-start:4px;background:var(--card-background-color,#fff);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;pointer-events:none}
+    .chart-axis-label{position:absolute;top:157px;transform:translateX(-50%);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;white-space:nowrap;pointer-events:none}
+    .chart-day-hit{position:absolute;top:0;height:150px;border:0;background:transparent;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+    .chart-day-hit::after{content:"";position:absolute;left:50%;bottom:1px;width:12px;height:2px;border-radius:1px;transform:translateX(-50%);background:transparent}
+    .chart-day-hit:focus-visible{outline:none}.chart-day-hit:focus-visible::after,.chart-day-hit[aria-pressed=true]::after{background:var(--goal-focus)}
+    .chart-bar{stroke-linecap:butt;vector-effect:non-scaling-stroke}
+    .chart-bar.met{stroke:var(--goal-success)}
+    .chart-bar.missed{stroke:var(--goal-error)}
+    .chart-bar.progress{stroke:var(--goal-color)}
+    .chart-bar.no-data,.chart-bar.no-goal,.chart-bar.future{stroke:var(--goal-unavailable)}
+    .chart-stack{stroke-linecap:butt;vector-effect:non-scaling-stroke;transition:opacity 180ms ease-in-out}
+    .chart-stack.hidden{opacity:0}
+    .chart-missing{stroke:var(--goal-unavailable);stroke-width:1.5;stroke-linecap:round;vector-effect:non-scaling-stroke}
+    .chart-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+    .chart-empty{height:178px;display:grid;place-items:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px)}
     .detail{display:block;margin-top:var(--ha-space-3,12px);text-align:center;color:var(--goal-muted)}
     .oval-detail{margin-top:var(--ha-space-1,4px)}
     .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px}
@@ -337,10 +426,17 @@
     constructor(){
       super();this.attachShadow({mode:'open'});
       this._config=null;this._hass=null;this._period=null;this._signature='';this._sourceSignature='';this._selected=null;this._selectedMonth=null;
-      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._restartOnConnect=false;
+      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._restartOnConnect=false;this._viewMode=storedView();
+      this._hourly=[];this._hourlyKey='';this._hourlyLoading=false;this._hourlyError='';this._hourlyFetchId=0;this._restartHourlyOnConnect=false;
       this.shadowRoot.innerHTML=`<style>${css}</style><ha-card><div id="content"></div></ha-card>`;
       this.shadowRoot.addEventListener('click', (e)=>{
-        const btn=e.target.closest('[data-day],[data-month],[data-toggle-entity],[data-more-info]');if(!btn)return;
+        const btn=e.target.closest('[data-day],[data-month],[data-toggle-entity],[data-more-info],[data-view-toggle]');if(!btn)return;
+        if(btn.dataset.viewToggle!==undefined){
+          this._viewMode=this._viewMode==='chart'?'circles':'chart';storeView(this._viewMode);
+          this._render();
+          if(this._viewMode==='chart'&&this._period?.start===this._period?.end)this._loadHourly();
+          return;
+        }
         if(btn.dataset.toggleEntity){
           const id=btn.dataset.toggleEntity;
           if(this._hiddenEntities.has(id))this._hiddenEntities.delete(id);else this._hiddenEntities.add(id);
@@ -376,7 +472,8 @@
       const evaluationChanged=!previous||evaluationConfigKey(config)!==evaluationConfigKey(previous);
       this._config={...config};
       if(historyChanged||periodChanged){
-        this._signature='';this._sourceSignature='';this._selected=null;this._selectedMonth=null;this._hiddenEntities.clear();
+        this._signature='';this._sourceSignature='';this._selected=null;this._selectedMonth=null;this._hiddenEntities.clear();this._hourly=[];this._hourlyKey='';this._hourlyError='';
+        this._hourlyFetchId++;
         this._syncPeriod(true);
       } else if(evaluationChanged)this._rebuildDays();
       this._render();
@@ -393,7 +490,9 @@
     }
     connectedCallback(){
       const restart=this._restartOnConnect;this._restartOnConnect=false;
+      const restartHourly=this._restartHourlyOnConnect;this._restartHourlyOnConnect=false;
       this._syncPeriod(restart);
+      if(!restart&&restartHourly&&this._viewMode==='chart'&&this._period?.start===this._period?.end)this._loadHourly(true);
       this._observeSize();
       this._timer=setInterval(()=>{
         this._syncPeriod();
@@ -401,7 +500,7 @@
         if(now-this._clock>300000){this._clock=now;const today=dateParts(new Date(),this._tz());if(this._period?.start<=today&&this._period?.end>=today)this._load();else {this._mergeCurrentDay();this._render();}}
       },1100);
     }
-    disconnectedCallback(){this._restartOnConnect=this._restartOnConnect||this._loading;clearInterval(this._timer);this._timer=null;this._fetchId++;this._loading=false;this._resizeObserver?.disconnect();this._resizeObserver=null}
+    disconnectedCallback(){this._restartOnConnect=this._restartOnConnect||this._loading;this._restartHourlyOnConnect=this._restartHourlyOnConnect||this._hourlyLoading;clearInterval(this._timer);this._timer=null;this._fetchId++;this._hourlyFetchId++;this._loading=false;this._hourlyLoading=false;this._resizeObserver?.disconnect();this._resizeObserver=null}
     getCardSize(){
       const height=this.shadowRoot?.querySelector?.('ha-card')?.offsetHeight;
       return height?Math.max(1,Math.ceil(height/50)):5;
@@ -440,7 +539,8 @@
       this._sourceSignature=sourceSignature;
       const signature=`${a}/${b}/${tz}`;
       if(!force && signature===this._signature)return;
-      this._signature=signature;this._period={start:a,end:b};this._selected=null;this._selectedMonth=null;
+      this._signature=signature;this._period={start:a,end:b};this._selected=null;this._selectedMonth=null;this._hourly=[];this._hourlyKey='';this._hourlyError='';
+      this._hourlyFetchId++;
       this._load();
     }
     async _load(){
@@ -493,10 +593,43 @@
         }
         if(seq!==this._fetchId)return;
         this._metrics=metrics;this._targets=targets;this._rebuildDays();this._loading=false;this._render();
+        if(keys.length===1&&this._viewMode==='chart')this._loadHourly(true);
       }catch(err){
         if(seq!==this._fetchId)return;
         this._loading=false;this._error=this._t('recorderError',{error:err?.message||err});
         this._render();
+      }
+    }
+    async _loadHourly(force=false){
+      const period=this._period,hass=this._hass,config=this._config;
+      if(!period||period.start!==period.end||!hass||!config)return;
+      const key=`${period.start}/${this._tz()}/${historyConfigKey(config)}`;
+      if(!force&&key===this._hourlyKey&&(this._hourlyLoading||!this._hourlyError))return;
+      const seq=++this._hourlyFetchId;
+      this._hourlyKey=key;this._hourly=[];this._hourlyLoading=true;this._hourlyError='';this._render();
+      const start=zonedMidnight(period.start,this._tz()),end=zonedMidnight(keyPlus(period.end,1),this._tz());
+      const entityIds=measurementEntities(config);
+      try{
+        let response={},statisticsError=null;
+        try{
+          response=await hass.callWS({type:'recorder/statistics_during_period',start_time:start.toISOString(),end_time:end.toISOString(),period:'hour',statistic_ids:entityIds,types:['change','mean','max','min','state']});
+        }catch(err){statisticsError=err;console.warn('daily-goals-card: hourly statistics not available',err)}
+        if(seq!==this._hourlyFetchId)return;
+        this._hourly=hourlyProgressFromStats(response,entityIds,config.aggregation||'max');
+        if(!this._hourly.length&&typeof hass.callApi==='function'){
+          const url=`history/period/${encodeURIComponent(start.toISOString())}?filter_entity_id=${encodeURIComponent(entityIds.join(','))}&end_time=${encodeURIComponent(end.toISOString())}&no_attributes=1`;
+          const history=await hass.callApi('GET',url);
+          if(seq!==this._hourlyFetchId)return;
+          const byEntity=new Map();
+          for(const items of history||[])if(items?.[0]?.entity_id)byEntity.set(items[0].entity_id,items);
+          this._hourly=hourlyProgressFromHistory(byEntity,entityIds,config.aggregation||'max',start.getTime(),end.getTime());
+        }
+        if(!this._hourly.length&&statisticsError)this._hourlyError=String(statisticsError?.message||statisticsError);
+        this._hourlyLoading=false;this._render();
+      }catch(err){
+        if(seq!==this._hourlyFetchId)return;
+        this._hourlyLoading=false;this._hourlyError=String(err?.message||err);
+        console.warn('daily-goals-card: hourly history not available',err);this._render();
       }
     }
     _rebuildDays(){
@@ -702,6 +835,98 @@
       const amount=`${this._format(row.value)}${unit?` ${unit}`:''}`;
       return `<span class="detail"><strong>${escapeHTML(this._aggregationDetail())} ${escapeHTML(amount)}</strong><br>${meta}</span>`;
     }
+    _chartDayButton(row,left,width){
+      const unit=this._unit();
+      const value=row.value===null?'':`. ${this._format(row.value)}${unit?` ${unit}`:''}`;
+      const label=`${this._formatDate(row.key)}: ${this._label(row)}${value}`;
+      return `<button type="button" class="chart-day-hit" data-day="${row.key}" style="left:${left}%;width:${width}%" aria-pressed="${this._selected===row.key}" aria-label="${escapeHTML(label)}"></button>`;
+    }
+    _chartLabelIndexes(rows){
+      const count=rows.length;
+      if(count<=8)return rows.map((_row,index)=>index);
+      if(count<=31){
+        const step=Math.ceil(count/6),indexes=[];
+        for(let index=0;index<count;index+=step)indexes.push(index);
+        if(indexes.at(-1)!==count-1)indexes.push(count-1);
+        return indexes;
+      }
+      const indexes=rows.map((row,index)=>row.key.slice(8)==='01'?index:null).filter(index=>index!==null);
+      if(indexes[0]!==0)indexes.unshift(0);
+      if(indexes.at(-1)!==count-1)indexes.push(count-1);
+      return indexes;
+    }
+    _chartDateLabel(row,index,count){
+      if(count<=8)return this._weekday(row.key);
+      if(count<=62)return this._dateLabel(row.key,{day:'numeric',month:'short'});
+      const includeYear=index===0||row.key.slice(5)==='01-01';
+      return this._dateLabel(row.key,{month:'short',...(includeYear?{year:'2-digit'}:{})});
+    }
+    _barChart(){
+      const rows=this._days,count=rows.length,barWidth=chartBarWidth(count),base=145,top=9,plotHeight=base-top;
+      const scaleValues=rows.flatMap(row=>[row.value,row.goal]).filter(value=>value!==null&&Number.isFinite(value)).map(value=>Math.max(0,value));
+      const ceiling=Math.max(1,...scaleValues)*1.08;
+      const y=value=>base-Math.max(0,value)/ceiling*plotHeight;
+      let goalPath='',goalActive=false,previousGoalY=null,lastGoalY=null;
+      rows.forEach((row,index)=>{
+        if(row.goal===null){goalActive=false;previousGoalY=null;return}
+        const currentY=y(row.goal),left=100*index/count,right=100*(index+1)/count;
+        if(!goalActive)goalPath+=`M ${left} ${currentY}`;
+        else if(Math.abs(currentY-previousGoalY)>.01)goalPath+=` V ${currentY}`;
+        goalPath+=` H ${right}`;goalActive=true;previousGoalY=currentY;lastGoalY=currentY;
+      });
+      const bars=rows.map((row,index)=>{
+        const x=100*(index+.5)/count;
+        if(row.value===null||row.status==='future')return `<line class="chart-missing" x1="${x}" y1="${base}" x2="${x}" y2="${base-2}"/>`;
+        if(this._isMultiCurrent(row)){
+          let total=0;
+          return (row.parts||[]).map((part,partIndex)=>{
+            const value=Math.max(0,part.value??0),from=y(total),to=y(total+value);total+=value;
+            const hidden=this._hiddenEntities.has(part.entity)?' hidden':'';
+            return `<line class="chart-stack${hidden}" x1="${x}" y1="${from}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
+          }).join('');
+        }
+        const valueY=Math.min(base-1.5,y(row.value));
+        return `<line class="chart-bar ${row.status}" x1="${x}" y1="${base}" x2="${x}" y2="${valueY}" stroke-width="${barWidth}"/>`;
+      }).join('');
+      const hits=rows.map((row,index)=>this._chartDayButton(row,100*index/count,100/count)).join('');
+      const labels=this._chartLabelIndexes(rows).map(index=>`<span class="chart-axis-label" style="left:${100*(index+.5)/count}%">${escapeHTML(this._chartDateLabel(rows[index],index,count))}</span>`).join('');
+      const goal=goalPath?`<path class="chart-goal" d="${goalPath}"/>`:'';
+      const goalLabel=lastGoalY===null?'':`<span class="chart-goal-label" style="top:${Math.max(12,lastGoalY-3)}px">${escapeHTML(this._t('goalLine'))}</span>`;
+      const canvasWidth=count>31?Math.max(500,Math.ceil(28+count*(barWidth+1))):null;
+      const style=canvasWidth?` style="width:${canvasWidth}px"`:'';
+      const content=`<div class="chart-scroll"><div class="chart-canvas"${style} aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${goal}${bars}</svg>${goalLabel}${labels}${hits}</div></div>`;
+      return this._view(content);
+    }
+    _lineChart(row){
+      if(this._hourlyLoading)return this._view(`<div class="chart-empty">${escapeHTML(this._t('loadingHistory'))}</div>`);
+      if(this._hourlyError||!this._hourly.length)return this._view(`<div class="chart-empty">${escapeHTML(this._t('hourlyUnavailable'))}</div>`);
+      const start=zonedMidnight(row.key,this._tz()).getTime(),end=zonedMidnight(keyPlus(row.key,1),this._tz()).getTime();
+      const today=this._today(),visibleEnd=row.key===today?Math.min(Date.now(),end):end;
+      const points=this._hourly.filter(point=>point.time>=start&&point.time<=visibleEnd).map(point=>({...point}));
+      if(row.key<=today&&row.value!==null&&visibleEnd>=start){
+        if(!points.length||points.at(-1).time<visibleEnd)points.push({time:visibleEnd,value:row.value});
+        else if(points.at(-1).time===visibleEnd)points[points.length-1].value=row.value;
+      }
+      if(!points.length)return this._view(`<div class="chart-empty">${escapeHTML(this._t('hourlyUnavailable'))}</div>`);
+      const base=145,top=9,plotHeight=base-top;
+      const scaleValues=[row.goal,...points.map(point=>point.value)].filter(value=>value!==null&&Number.isFinite(value)).map(value=>Math.max(0,value));
+      const ceiling=Math.max(1,...scaleValues)*1.08;
+      const x=time=>100*Math.max(0,Math.min(1,(time-start)/(end-start)));
+      const y=value=>base-Math.max(0,value)/ceiling*plotHeight;
+      let path=points.map((point,index)=>`${index?'L':'M'} ${x(point.time)} ${y(point.value)}`).join(' ');
+      if(points.length===1)path+=` l .01 0`;
+      const goalY=row.goal===null?null:y(row.goal);
+      const goal=goalY===null?'':`<path class="chart-goal" d="M 0 ${goalY} H 100"/>`;
+      const goalLabel=goalY===null?'':`<span class="chart-goal-label" style="top:${Math.max(12,goalY-3)}px">${escapeHTML(this._t('goalLine'))}</span>`;
+      const formatTime=time=>formatter('DateTimeFormat',this._locale(),{timeZone:this._tz(),hour:'2-digit',minute:'2-digit'}).format(new Date(time));
+      const labels=[0,.25,.5,.75].map(fraction=>`<span class="chart-axis-label" style="left:${100*fraction}%">${escapeHTML(formatTime(start+(end-start)*fraction))}</span>`).join('');
+      const hit=this._chartDayButton(row,0,100);
+      const content=`<div class="chart-canvas" aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${goal}<path class="chart-line chart-bar ${row.status}" d="${path}"/></svg>${goalLabel}${labels}${hit}</div>`;
+      return this._view(content);
+    }
+    _graphView(kind){
+      return kind==='day'?this._lineChart(this._days[0]):this._barChart();
+    }
     _weekView(){
       const columns=Math.min(7,this._days.length);
       const labels=this._days.slice(0,columns).map(row=>this._weekday(row.key));
@@ -764,14 +989,19 @@
         let stage='';
         if(this._error)stage=`<div class="error">${escapeHTML(this._error)}</div>`;
         else if(this._loading)stage=`<div class="muted">${escapeHTML(this._t('loadingHistory'))}</div>`;
+        else if(this._viewMode==='chart')stage=this._graphView(kind);
         else if(kind==='day')stage=this._dayView(rows[0]);
         else if(kind==='week')stage=this._weekView();
         else if(kind==='month')stage=this._monthView();
         else if(kind==='rolling-month')stage=this._rollingMonthView();
         else stage=this._miniMonths();
-        const legend=!this._loading&&!this._error?this._seriesLegend():'';
+        const legend=!this._loading&&!this._error&&!(this._viewMode==='chart'&&kind==='day')?this._seriesLegend():'';
         const state=this._stateText(kind);
-        root.innerHTML=`<div class="header"><div class="header-icon" aria-hidden="true"><ha-state-icon></ha-state-icon></div><div class="header-info"><div class="name">${escapeHTML(title)}</div><div class="subtitle">${escapeHTML(state)}</div></div></div><div class="body">${stage}${legend}</div>`;
+        const chartView=this._viewMode==='chart';
+        const viewLabel=this._t(chartView?'showCircles':'showChart');
+        const viewIcon=chartView?'mdi:calendar-month-outline':'mdi:chart-bar';
+        const viewToggle=`<ha-icon-button class="view-toggle" data-view-toggle label="${escapeHTML(viewLabel)}"><ha-icon icon="${viewIcon}"></ha-icon></ha-icon-button>`;
+        root.innerHTML=`<div class="header"><div class="header-icon" aria-hidden="true"><ha-state-icon></ha-state-icon></div><div class="header-info"><div class="name">${escapeHTML(title)}</div><div class="subtitle">${escapeHTML(state)}</div></div>${viewToggle}</div><div class="body">${stage}${legend}</div>`;
         const stateIcon=root.querySelector('ha-state-icon');
         if(stateIcon){stateIcon.hass=hass;stateIcon.stateObj=hass.states?.[primary];if(c.icon)stateIcon.icon=c.icon;}
       } finally {
@@ -821,5 +1051,5 @@
   if(!window.customCards.some(c=>c.type==='daily-goals-card'))window.customCards.push({type:'daily-goals-card',name:translate(registrationLocale,'cardName'),description:translate(registrationLocale,'cardDescription'),preview:true});
   console.info(`%c DAILY GOALS CARD %c v${VERSION} `,'background:#03a9f4;color:white;font-weight:bold','background:#eee;color:#222');
   // Exposed only for programmatic tests; does not affect Home Assistant UI.
-  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,weekOffset,weekdayLabels,measurementEntities,shouldShowLegend,weekStartsSunday,finishedStyle,markerStyle,dailyFromStats,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,translate,localizedAggregationOptions,localizedFormSchema,AGGREGATION_OPTIONS,STYLE_ROWS};
+  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,weekOffset,weekdayLabels,measurementEntities,shouldShowLegend,weekStartsSunday,finishedStyle,markerStyle,dailyFromStats,hourlyProgressFromStats,hourlyProgressFromHistory,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,chartBarWidth,translate,localizedAggregationOptions,localizedFormSchema,AGGREGATION_OPTIONS,STYLE_ROWS};
 })();

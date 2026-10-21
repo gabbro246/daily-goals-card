@@ -609,3 +609,111 @@ test('status labels translate only the requested state',()=>{
  assert.equal(card._label({status:'custom'}),'custom');
  assert.equal(requested.length,1);
 });
+
+test('graph helpers keep hourly progress cumulative and use marker-scale bar widths',()=>{
+ const response={
+  'sensor.one':[
+   {start:'2026-10-20T00:00:00Z',max:10,change:2},
+   {start:'2026-10-20T01:00:00Z',max:20,change:3},
+  ],
+  'sensor.two':[
+   {start:'2026-10-20T00:00:00Z',max:5,change:1},
+   {start:'2026-10-20T01:00:00Z',max:7,change:4},
+  ],
+ };
+ const maximum=L.hourlyProgressFromStats(response,['sensor.one','sensor.two'],'max');
+ assert.deepEqual(Array.from(maximum,value=>value.value),[15,27]);
+ assert.equal(maximum[0].time,Date.parse('2026-10-20T01:00:00Z'));
+ const change=L.hourlyProgressFromStats(response,['sensor.one','sensor.two'],'change');
+ assert.deepEqual(Array.from(change,value=>value.value),[3,10]);
+ const history=new Map([
+  ['sensor.one',[
+   {last_updated:'2026-10-19T23:59:00Z',state:'100'},
+   {last_updated:'2026-10-20T00:30:00Z',state:'110'},
+   {last_updated:'2026-10-20T01:30:00Z',state:'120'},
+  ]],
+  ['sensor.two',[
+   {last_updated:'2026-10-19T23:59:00Z',state:'200'},
+   {last_updated:'2026-10-20T00:45:00Z',state:'205'},
+   {last_updated:'2026-10-20T01:45:00Z',state:'215'},
+  ]],
+ ]);
+ const historyChange=L.hourlyProgressFromHistory(history,['sensor.one','sensor.two'],'change',Date.parse('2026-10-20T00:00:00Z'),Date.parse('2026-10-20T03:00:00Z'));
+ assert.deepEqual(Array.from(historyChange,point=>point.value),[15,35,35]);
+ assert.equal(L.chartBarWidth(2),10);
+ assert.equal(L.chartBarWidth(8),10);
+ assert.equal(L.chartBarWidth(9),3);
+ assert.equal(L.chartBarWidth(31),3);
+ assert.equal(L.chartBarWidth(32),1.5);
+});
+
+test('graph view stays focused on goal status and uses the native-style header switch',()=>{
+ const card=new (elements.get('daily-goals-card'))();
+ const root={innerHTML:'',querySelector(){return null}};
+ card.shadowRoot.getElementById=()=>root;
+ card._config={entity:'sensor.steps',goal:100,unit:'steps'};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{}};
+ const today=L.dateParts(new Date(),'UTC');
+ card._days=L.makeKeys(L.keyPlus(today,-7),today).map((key,index)=>({
+  key,value:20+index*10,goal:100,status:key===today?'progress':index%2?'met':'missed',parts:[{entity:'sensor.steps',value:20+index*10}],
+ }));
+ card._viewMode='chart';
+ card._render();
+ assert.match(root.innerHTML,/class="view-toggle"/);
+ assert.match(root.innerHTML,/label="Show circle view"/);
+ assert.match(root.innerHTML,/mdi:calendar-month-outline/);
+ assert.match(root.innerHTML,/class="chart-goal"/);
+ assert.match(root.innerHTML,/stroke-width="10"/);
+ assert.match(root.innerHTML,/class="chart-bar met"/);
+ assert.match(root.innerHTML,/class="chart-bar missed"/);
+ assert.doesNotMatch(root.innerHTML,/y-axis|chart-grid/);
+
+ card._days=L.makeKeys(L.keyPlus(today,-31),today).map(key=>({key,value:50,goal:100,status:key===today?'progress':'missed',parts:[]}));
+ const longChart=card._barChart();
+ assert.match(longChart,/stroke-width="1.5"/);
+ assert.match(longChart,/chart-scroll/);
+
+ card._period={start:L.keyPlus(today,-1),end:today};
+ card.shadowRoot.listeners.click({target:{closest(){return {dataset:{viewToggle:''}}}}});
+ assert.equal(card._viewMode,'circles');
+ card.shadowRoot.listeners.click({target:{closest(){return {dataset:{viewToggle:''}}}}});
+ assert.equal(card._viewMode,'chart');
+});
+
+test('single-day graph requests hourly statistics and renders one simple total line',async()=>{
+ const card=new (elements.get('daily-goals-card'))();
+ const key='2026-10-20';
+ let request;
+ card._period={start:key,end:key};
+ card._config={entities:['sensor.one','sensor.two'],goal:100,aggregation:'max',unit:'steps'};
+ card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{},callWS(message){
+  request=message;
+  return Promise.resolve({
+   'sensor.one':[{start:key+'T00:00:00Z',max:10},{start:key+'T01:00:00Z',max:30}],
+   'sensor.two':[{start:key+'T00:00:00Z',max:5},{start:key+'T01:00:00Z',max:20}],
+  });
+ }};
+ card._days=[{key,value:50,goal:100,status:'missed',parts:[{entity:'sensor.one',value:30},{entity:'sensor.two',value:20}]}];
+ card._render=()=>{};
+ await card._loadHourly();
+ assert.equal(request.period,'hour');
+ assert.deepEqual(Array.from(request.statistic_ids),['sensor.one','sensor.two']);
+ assert.deepEqual(Array.from(card._hourly,point=>point.value),[15,50]);
+ const graph=card._lineChart(card._days[0]);
+ assert.match(graph,/class="chart-line chart-bar missed"/);
+ assert.match(graph,/class="chart-goal"/);
+ assert.match(graph,/data-day="2026-10-20"/);
+ assert.doesNotMatch(graph,/legend|chart-grid/);
+
+ card._viewMode='chart';
+ card._syncPeriod=()=>{};
+ card._observeSize=()=>{};
+ let reloads=0;
+ card._loadHourly=()=>{reloads++};
+ card._hourlyLoading=true;
+ card.disconnectedCallback();
+ assert.equal(card._restartHourlyOnConnect,true);
+ card.connectedCallback();
+ assert.equal(reloads,1);
+ card.disconnectedCallback();
+});

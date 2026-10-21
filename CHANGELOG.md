@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0
+- Added a header button for switching between circles and a simple goal graph.
+- Date ranges use outcome-colored bars, while single days show hourly progress as a line.
+- Graph selections show the same clear daily details as the circle view.
+
 ## 0.5.1
 - Expanded single-day views now show the calculation beside the main value without repeating it.
 
