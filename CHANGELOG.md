@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.4
+- Made tiny stacked values and missing-data days use a flat-bottomed minimum marker.
+- Rounded both ends of the goal line.
+- Reduced repeated date labels and kept edge labels visible.
+
 ## 0.6.3
 - Corrected goal-line dash spacing to match missing-data circles.
 - Kept the meeting points between stacked values straight.

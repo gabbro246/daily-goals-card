@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.3';
+  const VERSION = '0.6.4';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -397,6 +397,8 @@
     .chart-goal{fill:none;stroke:var(--goal-unavailable);stroke-width:3;stroke-dasharray:4 8;stroke-linecap:round;vector-effect:non-scaling-stroke}
     .chart-goal-label{position:absolute;right:2px;z-index:2;transform:translateY(-100%);padding-inline-start:4px;background:var(--card-background-color,#fff);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;pointer-events:none}
     .chart-axis-label{position:absolute;top:157px;transform:translateX(-50%);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;white-space:nowrap;pointer-events:none}
+    .chart-axis-label.start{transform:none}
+    .chart-axis-label.end{transform:translateX(-100%)}
     .chart-day-hit{position:absolute;top:0;height:150px;border:0;background:transparent;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
     .chart-day-hit::after{content:"";position:absolute;left:50%;bottom:1px;width:12px;height:2px;border-radius:1px;transform:translateX(-50%);background:transparent}
     .chart-day-hit:focus-visible{outline:none}.chart-day-hit:focus-visible::after,.chart-day-hit[aria-pressed=true]::after{background:var(--goal-focus)}
@@ -409,7 +411,6 @@
     .chart-stack{stroke-linecap:butt;vector-effect:non-scaling-stroke;transition:opacity 180ms ease-in-out}
     .chart-stack.chart-cap{stroke-linecap:round}
     .chart-stack.hidden{opacity:0}
-    .chart-missing{stroke:var(--goal-unavailable);stroke-width:2;stroke-linecap:round;vector-effect:non-scaling-stroke}
     .chart-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
     .chart-empty{height:178px;display:grid;place-items:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px)}
     .detail{display:block;margin-top:var(--ha-space-3,12px);text-align:center;color:var(--goal-muted)}
@@ -843,18 +844,17 @@
       const count=rows.length;
       if(count<=8)return rows.map((_row,index)=>index);
       if(count<=31){
-        const step=Math.ceil(count/6),indexes=[];
-        for(let index=0;index<count;index+=step)indexes.push(index);
-        if(indexes.at(-1)!==count-1)indexes.push(count-1);
-        return indexes;
+        const last=count-1;
+        return [...new Set([0,Math.round(last/3),Math.round(last*2/3),last])];
       }
       const indexes=rows.map((row,index)=>row.key.slice(8)==='01'?index:null).filter(index=>index!==null);
       if(indexes[0]!==0)indexes.unshift(0);
       if(indexes.at(-1)!==count-1)indexes.push(count-1);
       return indexes;
     }
-    _chartDateLabel(row,index,count){
+    _chartDateLabel(row,index,count,singleMonth=false){
       if(count<=8)return this._weekday(row.key);
+      if(count<=31&&singleMonth)return this._dateLabel(row.key,{day:'numeric'});
       if(count<=62)return this._dateLabel(row.key,{day:'numeric',month:'short'});
       const includeYear=index===0||row.key.slice(5)==='01-01';
       return this._dateLabel(row.key,{month:'short',...(includeYear?{year:'2-digit'}:{})});
@@ -864,10 +864,10 @@
       const scaleValues=rows.flatMap(row=>[row.value,row.goal]).filter(value=>value!==null&&Number.isFinite(value)).map(value=>Math.max(0,value));
       const ceiling=Math.max(1,...scaleValues)*1.08;
       const y=value=>base-Math.max(0,value)/ceiling*plotHeight;
-      let goalPath='',goalActive=false,previousGoalY=null,lastGoalY=null;
+      const edgeInset=.5;let goalPath='',goalActive=false,previousGoalY=null,lastGoalY=null;
       rows.forEach((row,index)=>{
         if(row.goal===null){goalActive=false;previousGoalY=null;return}
-        const currentY=y(row.goal),left=100*index/count,right=100*(index+1)/count;
+        const currentY=y(row.goal),left=index?100*index/count:edgeInset,right=index===count-1?100-edgeInset:100*(index+1)/count;
         if(!goalActive)goalPath+=`M ${left} ${currentY}`;
         else if(Math.abs(currentY-previousGoalY)>.01)goalPath+=` V ${currentY}`;
         goalPath+=` H ${right}`;goalActive=true;previousGoalY=currentY;lastGoalY=currentY;
@@ -877,26 +877,30 @@
         if(row.status==='future')return '';
         if(row.value===null){
           if(row.status!=='no-data')return '';
-          const half=Math.min(.7,35/count),markerY=base-1.5;
-          return `<line class="chart-missing" x1="${x-half}" y1="${markerY}" x2="${x+half}" y2="${markerY}"/>`;
+          const capY=base-barWidth/2,marker=`<line class="chart-bar no-data chart-missing" x1="${x}" y1="${base}" x2="${x}" y2="${capY}" stroke-width="${barWidth}"/>`;
+          return marker+`<line class="chart-cap no-data chart-missing" x1="${x}" y1="${capY}" x2="${x}" y2="${capY}" stroke-width="${barWidth}"/>`;
         }
         if(this._isMultiCurrent(row)){
+          const parts=row.parts||[];
+          const topPartIndex=parts.reduce((last,part,index)=>Math.max(0,part.value??0)>0?index:last,-1);
           let total=0,cap='';
-          const segments=(row.parts||[]).map((part,partIndex)=>{
+          const segments=parts.map((part,partIndex)=>{
             const value=Math.max(0,part.value??0),from=y(total),to=y(total+value);total+=value;
+            const displayTo=partIndex===topPartIndex?Math.min(to,from-barWidth/2):to;
             const hidden=this._hiddenEntities.has(part.entity)?' hidden':'';
-            const segment=`<line class="chart-stack${hidden}" x1="${x}" y1="${from}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
-            if(value)cap=`<line class="chart-stack chart-cap${hidden}" x1="${x}" y1="${to}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
+            const segment=`<line class="chart-stack${hidden}" x1="${x}" y1="${from}" x2="${x}" y2="${displayTo}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
+            if(partIndex===topPartIndex)cap=`<line class="chart-stack chart-cap${hidden}" x1="${x}" y1="${displayTo}" x2="${x}" y2="${displayTo}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
             return segment;
           }).join('');
           return segments+cap;
         }
-        const valueY=Math.min(base-1.5,y(row.value));
+        const valueY=Math.min(base-barWidth/2,y(row.value));
         const bar=`<line class="chart-bar ${row.status}" x1="${x}" y1="${base}" x2="${x}" y2="${valueY}" stroke-width="${barWidth}"/>`;
         return bar+`<line class="chart-cap ${row.status}" x1="${x}" y1="${valueY}" x2="${x}" y2="${valueY}" stroke-width="${barWidth}"/>`;
       }).join('');
       const hits=rows.map((row,index)=>this._chartDayButton(row,100*index/count,100/count)).join('');
-      const labels=this._chartLabelIndexes(rows).map(index=>`<span class="chart-axis-label" style="left:${100*(index+.5)/count}%">${escapeHTML(this._chartDateLabel(rows[index],index,count))}</span>`).join('');
+      const labelIndexes=this._chartLabelIndexes(rows),singleMonth=rows[0]?.key.slice(0,7)===rows.at(-1)?.key.slice(0,7);
+      const labels=labelIndexes.map((index,labelIndex)=>{const edge=count>8?(labelIndex===0?' start':labelIndex===labelIndexes.length-1?' end':''):'';return `<span class="chart-axis-label${edge}" style="left:${100*(index+.5)/count}%">${escapeHTML(this._chartDateLabel(rows[index],index,count,singleMonth))}</span>`}).join('');
       const goal=goalPath?`<path class="chart-goal" d="${goalPath}"/>`:'';
       const goalLabel=lastGoalY===null?'':`<span class="chart-goal-label" style="top:${Math.max(12,lastGoalY-3)}px">${escapeHTML(this._t('goalLine'))}</span>`;
       const canvasWidth=count>92?Math.max(500,Math.ceil(28+count*(barWidth+.5))):null;
@@ -924,10 +928,10 @@
       let path=points.map((point,index)=>`${index?'L':'M'} ${x(point.time)} ${y(point.value)}`).join(' ');
       if(points.length===1)path+=` l .01 0`;
       const goalY=row.goal===null?null:y(row.goal);
-      const goal=goalY===null?'':`<path class="chart-goal" d="M 0 ${goalY} H 100"/>`;
+      const goal=goalY===null?'':`<path class="chart-goal" d="M .5 ${goalY} H 99.5"/>`;
       const goalLabel=goalY===null?'':`<span class="chart-goal-label" style="top:${Math.max(12,goalY-3)}px">${escapeHTML(this._t('goalLine'))}</span>`;
       const formatTime=time=>formatter('DateTimeFormat',this._locale(),{timeZone:this._tz(),hour:'2-digit',minute:'2-digit'}).format(new Date(time));
-      const labels=[0,.25,.5,.75].map(fraction=>`<span class="chart-axis-label" style="left:${100*fraction}%">${escapeHTML(formatTime(start+(end-start)*fraction))}</span>`).join('');
+      const labels=[0,.25,.5,.75].map(fraction=>`<span class="chart-axis-label${fraction===0?' start':''}" style="left:${100*fraction}%">${escapeHTML(formatTime(start+(end-start)*fraction))}</span>`).join('');
       const hit=this._chartDayButton(row,0,100);
       const content=`<div class="chart-canvas" aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${goal}<path class="chart-line chart-bar ${row.status}" d="${path}"/></svg>${goalLabel}${labels}${hit}</div>`;
       return this._view(content);

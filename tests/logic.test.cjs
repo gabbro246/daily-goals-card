@@ -673,10 +673,14 @@ test('graph view stays focused on goal status and uses the native-style header s
  assert.doesNotMatch(root.innerHTML,/y-axis|chart-grid/);
 
  card._config={entities:['sensor.one','sensor.two'],goal:100};
- card._days=[{key:today,value:50,goal:100,status:'progress',parts:[{entity:'sensor.one',value:20},{entity:'sensor.two',value:30}]}];
+ card._days=[{key:today,value:50,goal:100,status:'progress',parts:[{entity:'sensor.one',value:49.9},{entity:'sensor.two',value:.1}]}];
  const stackedChart=card._barChart();
- assert.equal((stackedChart.match(/class="chart-stack"/g)||[]).length,2);
+ const stackedSegments=[...stackedChart.matchAll(/class="chart-stack" x1="[^"]+" y1="([^"]+)" x2="[^"]+" y2="([^"]+)"/g)];
+ assert.equal(stackedSegments.length,2);
  assert.equal((stackedChart.match(/class="chart-stack chart-cap/g)||[]).length,1);
+ assert.equal(stackedSegments[0][2],stackedSegments[1][1]);
+ assert.ok(Number(stackedSegments[1][1])-Number(stackedSegments[1][2])>=4.999);
+ assert.match(stackedChart,new RegExp(`class="chart-stack chart-cap[^"]*" x1="[^"]+" y1="${stackedSegments[1][2]}"[^>]+y2="${stackedSegments[1][2]}"`));
 
  card._config={entity:'sensor.steps',goal:100,unit:'steps'};
  card._days=[
@@ -684,7 +688,17 @@ test('graph view stays focused on goal status and uses the native-style header s
   {key:L.keyPlus(today,1),value:null,goal:100,status:'future',parts:[]},
  ];
  const missingChart=card._barChart();
- assert.equal((missingChart.match(/class="chart-missing"/g)||[]).length,1);
+ assert.equal((missingChart.match(/chart-missing/g)||[]).length,2);
+ assert.match(missingChart,/class="chart-bar no-data chart-missing"[^>]*y1="145"[^>]*y2="140"[^>]*stroke-width="10"/);
+ assert.match(missingChart,/class="chart-cap no-data chart-missing"[^>]*y1="140"[^>]*y2="140"[^>]*stroke-width="10"/);
+ assert.match(missingChart,/class="chart-goal" d="M 0\.5 [^"]+H 99\.5"/);
+
+ card._days=L.makeKeys('2026-10-01','2026-10-31').map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
+ const monthChart=card._barChart();
+ assert.equal((monthChart.match(/class="chart-axis-label/g)||[]).length,4);
+ assert.match(monthChart,/class="chart-axis-label start"/);
+ assert.match(monthChart,/class="chart-axis-label end"/);
+ assert.doesNotMatch(monthChart,/>[^<]*Oct[^<]*<\/span>/);
 
  card._days=L.makeKeys(L.keyPlus(today,-31),today).map(key=>({key,value:50,goal:100,status:key===today?'progress':'missed',parts:[]}));
  const longChart=card._barChart();
@@ -738,6 +752,7 @@ test('single-day graph requests hourly statistics and renders one simple total l
  assert.deepEqual(Array.from(card._hourly,point=>point.value),[15,50]);
  const graph=card._lineChart(card._days[0]);
  assert.match(graph,/class="chart-line chart-bar missed"/);
+ assert.match(graph,/class="chart-goal" d="M \.5 [^"]+ H 99\.5"/);
  assert.match(graph,/class="chart-goal"/);
  assert.match(graph,/data-day="2026-10-20"/);
  assert.doesNotMatch(graph,/legend|chart-grid/);
