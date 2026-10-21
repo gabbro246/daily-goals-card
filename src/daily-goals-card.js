@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.1';
+  const VERSION = '0.6.2';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -390,10 +390,11 @@
     .legend-label{max-width:150px;color:var(--goal-ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .legend-value{margin-inline-start:var(--ha-space-1,4px);color:var(--goal-muted);white-space:nowrap}
     .legend-toggle:focus-visible,.legend-label:focus-visible{outline:2px solid var(--goal-focus);outline-offset:1px;border-radius:var(--ha-border-radius-sm,4px)}
-    .chart-scroll{width:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-inline:contain}
+    .chart-scroll{width:100%;overflow-x:hidden;overflow-y:hidden}
+    .chart-scroll.scrollable{overflow-x:auto;overscroll-behavior-inline:contain}
     .chart-canvas{position:relative;height:178px;min-width:0;margin:0 auto}
     .status-chart{position:absolute;inset:0 0 auto;width:100%;height:150px;overflow:visible}
-    .chart-goal{fill:none;stroke:var(--goal-muted);stroke-width:2;stroke-dasharray:5 4;stroke-linecap:round;vector-effect:non-scaling-stroke;opacity:.7}
+    .chart-goal{fill:none;stroke:var(--goal-unavailable);stroke-width:3;stroke-dasharray:1 2;stroke-linecap:round;vector-effect:non-scaling-stroke}
     .chart-goal-label{position:absolute;right:2px;z-index:2;transform:translateY(-100%);padding-inline-start:4px;background:var(--card-background-color,#fff);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;pointer-events:none}
     .chart-axis-label{position:absolute;top:157px;transform:translateX(-50%);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;white-space:nowrap;pointer-events:none}
     .chart-day-hit{position:absolute;top:0;height:150px;border:0;background:transparent;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -894,7 +895,8 @@
       const goalLabel=lastGoalY===null?'':`<span class="chart-goal-label" style="top:${Math.max(12,lastGoalY-3)}px">${escapeHTML(this._t('goalLine'))}</span>`;
       const canvasWidth=count>92?Math.max(500,Math.ceil(28+count*(barWidth+.5))):null;
       const style=canvasWidth?` style="width:${canvasWidth}px"`:'';
-      const content=`<div class="chart-scroll"><div class="chart-canvas"${style} aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${goal}${bars}</svg>${goalLabel}${labels}${hits}</div></div>`;
+      const scrollClass=canvasWidth?'chart-scroll scrollable':'chart-scroll';
+      const content=`<div class="${scrollClass}"><div class="chart-canvas"${style} aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${goal}${bars}</svg>${goalLabel}${labels}${hits}</div></div>`;
       return this._view(content);
     }
     _lineChart(row){

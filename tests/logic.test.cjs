@@ -650,7 +650,8 @@ test('graph helpers keep hourly progress cumulative and use marker-scale bar wid
 
 test('graph view stays focused on goal status and uses the native-style header switch',()=>{
  const card=new (elements.get('daily-goals-card'))();
- assert.match(card.shadowRoot.innerHTML,/\.chart-goal\{[^}]*stroke-linecap:round/);
+ assert.match(card.shadowRoot.innerHTML,/\.chart-goal\{fill:none;stroke:var\(--goal-unavailable\);stroke-width:3;stroke-dasharray:1 2;stroke-linecap:round/);
+ assert.match(card.shadowRoot.innerHTML,/\.chart-scroll\{[^}]*overflow-x:hidden/);
  const root={innerHTML:'',querySelector(){return null}};
  card.shadowRoot.getElementById=()=>root;
  card._config={entity:'sensor.steps',goal:100,unit:'steps'};
@@ -674,16 +675,19 @@ test('graph view stays focused on goal status and uses the native-style header s
  card._days=L.makeKeys(L.keyPlus(today,-31),today).map(key=>({key,value:50,goal:100,status:key===today?'progress':'missed',parts:[]}));
  const longChart=card._barChart();
  assert.match(longChart,/stroke-width="1.5"/);
- assert.match(longChart,/chart-scroll/);
+ assert.match(longChart,/class="chart-scroll"/);
+ assert.doesNotMatch(longChart,/chart-scroll scrollable/);
  assert.doesNotMatch(longChart,/class="chart-canvas" style=/);
 
  card._days=L.makeKeys(L.keyPlus(today,-91),today).map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
  const quarterChart=card._barChart();
  assert.doesNotMatch(quarterChart,/class="chart-canvas" style=/);
+ assert.doesNotMatch(quarterChart,/chart-scroll scrollable/);
 
  card._days=L.makeKeys(L.keyPlus(today,-92),today).map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
  const overQuarterChart=card._barChart();
  assert.match(overQuarterChart,/class="chart-canvas" style="width:500px"/);
+ assert.match(overQuarterChart,/class="chart-scroll scrollable"/);
 
  card._days=L.makeKeys(L.keyPlus(today,-364),today).map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
  const yearChart=card._barChart();

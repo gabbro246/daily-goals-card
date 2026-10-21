@@ -1,9 +1,13 @@
 # Changelog
 
+## 0.6.2
+- Removed horizontal scrolling from month and quarter graph ranges.
+- Matched the goal line to the appearance of missing-data circles.
+
 ## 0.6.1
 - Prevented cards from switching views together while editing a dashboard.
 - Rounded bar tops and goal-line dashes.
-- Reduced bar spacing so ranges up to a quarter fit without scrolling.
+- Reduced spacing between bars in longer graph ranges.
 
 ## 0.6.0
 - Added a header button for switching between circles and a simple goal graph.
