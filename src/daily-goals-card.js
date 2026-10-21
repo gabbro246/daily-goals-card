@@ -3,10 +3,9 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.0';
+  const VERSION = '0.6.1';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
-  const VIEW_STORAGE_KEY = 'daily-goals-card-view';
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
   // Share formatters across cards; bound the cache when locales or options change.
   const formatters = new Map();
@@ -289,10 +288,6 @@
     return null;
   };
   const chartBarWidth = (count) => count<=8?10:count<=31?3:1.5;
-  const storedView = () => {
-    try{return window.localStorage?.getItem(VIEW_STORAGE_KEY)==='chart'?'chart':'circles'}catch(_err){return 'circles'}
-  };
-  const storeView = (view) => {try{window.localStorage?.setItem(VIEW_STORAGE_KEY,view)}catch(_err){}};
   const css = `
     :host {
       display:block;
@@ -398,18 +393,20 @@
     .chart-scroll{width:100%;overflow-x:auto;overflow-y:hidden;overscroll-behavior-inline:contain}
     .chart-canvas{position:relative;height:178px;min-width:0;margin:0 auto}
     .status-chart{position:absolute;inset:0 0 auto;width:100%;height:150px;overflow:visible}
-    .chart-goal{fill:none;stroke:var(--goal-muted);stroke-width:2;stroke-dasharray:5 4;vector-effect:non-scaling-stroke;opacity:.7}
+    .chart-goal{fill:none;stroke:var(--goal-muted);stroke-width:2;stroke-dasharray:5 4;stroke-linecap:round;vector-effect:non-scaling-stroke;opacity:.7}
     .chart-goal-label{position:absolute;right:2px;z-index:2;transform:translateY(-100%);padding-inline-start:4px;background:var(--card-background-color,#fff);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;pointer-events:none}
     .chart-axis-label{position:absolute;top:157px;transform:translateX(-50%);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;white-space:nowrap;pointer-events:none}
     .chart-day-hit{position:absolute;top:0;height:150px;border:0;background:transparent;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
     .chart-day-hit::after{content:"";position:absolute;left:50%;bottom:1px;width:12px;height:2px;border-radius:1px;transform:translateX(-50%);background:transparent}
     .chart-day-hit:focus-visible{outline:none}.chart-day-hit:focus-visible::after,.chart-day-hit[aria-pressed=true]::after{background:var(--goal-focus)}
     .chart-bar{stroke-linecap:butt;vector-effect:non-scaling-stroke}
-    .chart-bar.met{stroke:var(--goal-success)}
-    .chart-bar.missed{stroke:var(--goal-error)}
-    .chart-bar.progress{stroke:var(--goal-color)}
-    .chart-bar.no-data,.chart-bar.no-goal,.chart-bar.future{stroke:var(--goal-unavailable)}
+    .chart-cap{stroke-linecap:round;vector-effect:non-scaling-stroke}
+    .chart-bar.met,.chart-cap.met{stroke:var(--goal-success)}
+    .chart-bar.missed,.chart-cap.missed{stroke:var(--goal-error)}
+    .chart-bar.progress,.chart-cap.progress{stroke:var(--goal-color)}
+    .chart-bar.no-data,.chart-bar.no-goal,.chart-bar.future,.chart-cap.no-data,.chart-cap.no-goal,.chart-cap.future{stroke:var(--goal-unavailable)}
     .chart-stack{stroke-linecap:butt;vector-effect:non-scaling-stroke;transition:opacity 180ms ease-in-out}
+    .chart-stack.chart-cap{stroke-linecap:round}
     .chart-stack.hidden{opacity:0}
     .chart-missing{stroke:var(--goal-unavailable);stroke-width:1.5;stroke-linecap:round;vector-effect:non-scaling-stroke}
     .chart-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
@@ -426,13 +423,13 @@
     constructor(){
       super();this.attachShadow({mode:'open'});
       this._config=null;this._hass=null;this._period=null;this._signature='';this._sourceSignature='';this._selected=null;this._selectedMonth=null;
-      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._restartOnConnect=false;this._viewMode=storedView();
+      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._restartOnConnect=false;this._viewMode='circles';
       this._hourly=[];this._hourlyKey='';this._hourlyLoading=false;this._hourlyError='';this._hourlyFetchId=0;this._restartHourlyOnConnect=false;
       this.shadowRoot.innerHTML=`<style>${css}</style><ha-card><div id="content"></div></ha-card>`;
       this.shadowRoot.addEventListener('click', (e)=>{
         const btn=e.target.closest('[data-day],[data-month],[data-toggle-entity],[data-more-info],[data-view-toggle]');if(!btn)return;
         if(btn.dataset.viewToggle!==undefined){
-          this._viewMode=this._viewMode==='chart'?'circles':'chart';storeView(this._viewMode);
+          this._viewMode=this._viewMode==='chart'?'circles':'chart';
           this._render();
           if(this._viewMode==='chart'&&this._period?.start===this._period?.end)this._loadHourly();
           return;
@@ -882,17 +879,20 @@
           return (row.parts||[]).map((part,partIndex)=>{
             const value=Math.max(0,part.value??0),from=y(total),to=y(total+value);total+=value;
             const hidden=this._hiddenEntities.has(part.entity)?' hidden':'';
-            return `<line class="chart-stack${hidden}" x1="${x}" y1="${from}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
+            const segment=`<line class="chart-stack${hidden}" x1="${x}" y1="${from}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
+            const cap=value?`<line class="chart-stack chart-cap${hidden}" x1="${x}" y1="${to}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`:'';
+            return segment+cap;
           }).join('');
         }
         const valueY=Math.min(base-1.5,y(row.value));
-        return `<line class="chart-bar ${row.status}" x1="${x}" y1="${base}" x2="${x}" y2="${valueY}" stroke-width="${barWidth}"/>`;
+        const bar=`<line class="chart-bar ${row.status}" x1="${x}" y1="${base}" x2="${x}" y2="${valueY}" stroke-width="${barWidth}"/>`;
+        return bar+`<line class="chart-cap ${row.status}" x1="${x}" y1="${valueY}" x2="${x}" y2="${valueY}" stroke-width="${barWidth}"/>`;
       }).join('');
       const hits=rows.map((row,index)=>this._chartDayButton(row,100*index/count,100/count)).join('');
       const labels=this._chartLabelIndexes(rows).map(index=>`<span class="chart-axis-label" style="left:${100*(index+.5)/count}%">${escapeHTML(this._chartDateLabel(rows[index],index,count))}</span>`).join('');
       const goal=goalPath?`<path class="chart-goal" d="${goalPath}"/>`:'';
       const goalLabel=lastGoalY===null?'':`<span class="chart-goal-label" style="top:${Math.max(12,lastGoalY-3)}px">${escapeHTML(this._t('goalLine'))}</span>`;
-      const canvasWidth=count>31?Math.max(500,Math.ceil(28+count*(barWidth+1))):null;
+      const canvasWidth=count>92?Math.max(500,Math.ceil(28+count*(barWidth+.5))):null;
       const style=canvasWidth?` style="width:${canvasWidth}px"`:'';
       const content=`<div class="chart-scroll"><div class="chart-canvas"${style} aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${goal}${bars}</svg>${goalLabel}${labels}${hits}</div></div>`;
       return this._view(content);

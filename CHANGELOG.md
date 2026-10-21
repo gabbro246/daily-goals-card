@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.1
+- Prevented cards from switching views together while editing a dashboard.
+- Rounded bar tops and goal-line dashes.
+- Reduced bar spacing so ranges up to a quarter fit without scrolling.
+
 ## 0.6.0
 - Added a header button for switching between circles and a simple goal graph.
 - Date ranges use outcome-colored bars, while single days show hourly progress as a line.

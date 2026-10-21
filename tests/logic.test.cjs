@@ -7,7 +7,8 @@ const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname,'../src/daily-goals-card.js'),'utf8');
 const elements=new Map();
 class HTMLElementStub {attachShadow(){const root={innerHTML:'',listeners:{},children:[],addEventListener(name,handler){this.listeners[name]=handler},appendChild(child){this.children.push(child)},getElementById(){return null}};this.shadowRoot=root;return root}}
-const globals={Date,Math,Intl,Number,Set,Map,Array,console,setInterval(){return 1},clearInterval(){},HTMLElement:HTMLElementStub,window:{__DAILY_GOALS_TEST__:{}},customElements:{get(n){return elements.get(n)},define(n,cls){elements.set(n,cls)}},document:{createElement(){return {addEventListener(){},attachShadow(){return {appendChild(){}}}}}}};
+const storedValues=new Map();
+const globals={Date,Math,Intl,Number,Set,Map,Array,console,setInterval(){return 1},clearInterval(){},HTMLElement:HTMLElementStub,window:{__DAILY_GOALS_TEST__:{},localStorage:{getItem(key){return storedValues.get(key)??null},setItem(key,value){storedValues.set(key,value)}}},customElements:{get(n){return elements.get(n)},define(n,cls){elements.set(n,cls)}},document:{createElement(){return {addEventListener(){},attachShadow(){return {appendChild(){}}}}}}};
 vm.runInNewContext(source,globals);
 const L=globals.window.__DAILY_GOALS_TEST__;
 test('aggregation choices use native secondary descriptions',()=>{
@@ -649,6 +650,7 @@ test('graph helpers keep hourly progress cumulative and use marker-scale bar wid
 
 test('graph view stays focused on goal status and uses the native-style header switch',()=>{
  const card=new (elements.get('daily-goals-card'))();
+ assert.match(card.shadowRoot.innerHTML,/\.chart-goal\{[^}]*stroke-linecap:round/);
  const root={innerHTML:'',querySelector(){return null}};
  card.shadowRoot.getElementById=()=>root;
  card._config={entity:'sensor.steps',goal:100,unit:'steps'};
@@ -666,18 +668,35 @@ test('graph view stays focused on goal status and uses the native-style header s
  assert.match(root.innerHTML,/stroke-width="10"/);
  assert.match(root.innerHTML,/class="chart-bar met"/);
  assert.match(root.innerHTML,/class="chart-bar missed"/);
+ assert.match(root.innerHTML,/class="chart-cap met"/);
  assert.doesNotMatch(root.innerHTML,/y-axis|chart-grid/);
 
  card._days=L.makeKeys(L.keyPlus(today,-31),today).map(key=>({key,value:50,goal:100,status:key===today?'progress':'missed',parts:[]}));
  const longChart=card._barChart();
  assert.match(longChart,/stroke-width="1.5"/);
  assert.match(longChart,/chart-scroll/);
+ assert.doesNotMatch(longChart,/class="chart-canvas" style=/);
+
+ card._days=L.makeKeys(L.keyPlus(today,-91),today).map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
+ const quarterChart=card._barChart();
+ assert.doesNotMatch(quarterChart,/class="chart-canvas" style=/);
+
+ card._days=L.makeKeys(L.keyPlus(today,-92),today).map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
+ const overQuarterChart=card._barChart();
+ assert.match(overQuarterChart,/class="chart-canvas" style="width:500px"/);
+
+ card._days=L.makeKeys(L.keyPlus(today,-364),today).map(key=>({key,value:50,goal:100,status:'missed',parts:[]}));
+ const yearChart=card._barChart();
+ assert.match(yearChart,/class="chart-canvas" style="width:758px"/);
 
  card._period={start:L.keyPlus(today,-1),end:today};
  card.shadowRoot.listeners.click({target:{closest(){return {dataset:{viewToggle:''}}}}});
  assert.equal(card._viewMode,'circles');
  card.shadowRoot.listeners.click({target:{closest(){return {dataset:{viewToggle:''}}}}});
  assert.equal(card._viewMode,'chart');
+ const otherCard=new (elements.get('daily-goals-card'))();
+ assert.equal(storedValues.size,0);
+ assert.equal(otherCard._viewMode,'circles');
 });
 
 test('single-day graph requests hourly statistics and renders one simple total line',async()=>{
