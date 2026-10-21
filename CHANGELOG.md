@@ -1,8 +1,13 @@
 # Changelog
 
+## 0.6.3
+- Corrected goal-line dash spacing to match missing-data circles.
+- Kept the meeting points between stacked values straight.
+- Added small gray markers for past days without data.
+
 ## 0.6.2
 - Removed horizontal scrolling from month and quarter graph ranges.
-- Matched the goal line to the appearance of missing-data circles.
+- Matched the goal line color and thickness to missing-data circles.
 
 ## 0.6.1
 - Prevented cards from switching views together while editing a dashboard.

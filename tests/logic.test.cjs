@@ -650,7 +650,7 @@ test('graph helpers keep hourly progress cumulative and use marker-scale bar wid
 
 test('graph view stays focused on goal status and uses the native-style header switch',()=>{
  const card=new (elements.get('daily-goals-card'))();
- assert.match(card.shadowRoot.innerHTML,/\.chart-goal\{fill:none;stroke:var\(--goal-unavailable\);stroke-width:3;stroke-dasharray:1 2;stroke-linecap:round/);
+ assert.match(card.shadowRoot.innerHTML,/\.chart-goal\{fill:none;stroke:var\(--goal-unavailable\);stroke-width:3;stroke-dasharray:4 8;stroke-linecap:round/);
  assert.match(card.shadowRoot.innerHTML,/\.chart-scroll\{[^}]*overflow-x:hidden/);
  const root={innerHTML:'',querySelector(){return null}};
  card.shadowRoot.getElementById=()=>root;
@@ -671,6 +671,20 @@ test('graph view stays focused on goal status and uses the native-style header s
  assert.match(root.innerHTML,/class="chart-bar missed"/);
  assert.match(root.innerHTML,/class="chart-cap met"/);
  assert.doesNotMatch(root.innerHTML,/y-axis|chart-grid/);
+
+ card._config={entities:['sensor.one','sensor.two'],goal:100};
+ card._days=[{key:today,value:50,goal:100,status:'progress',parts:[{entity:'sensor.one',value:20},{entity:'sensor.two',value:30}]}];
+ const stackedChart=card._barChart();
+ assert.equal((stackedChart.match(/class="chart-stack"/g)||[]).length,2);
+ assert.equal((stackedChart.match(/class="chart-stack chart-cap/g)||[]).length,1);
+
+ card._config={entity:'sensor.steps',goal:100,unit:'steps'};
+ card._days=[
+  {key:L.keyPlus(today,-1),value:null,goal:100,status:'no-data',parts:[]},
+  {key:L.keyPlus(today,1),value:null,goal:100,status:'future',parts:[]},
+ ];
+ const missingChart=card._barChart();
+ assert.equal((missingChart.match(/class="chart-missing"/g)||[]).length,1);
 
  card._days=L.makeKeys(L.keyPlus(today,-31),today).map(key=>({key,value:50,goal:100,status:key===today?'progress':'missed',parts:[]}));
  const longChart=card._barChart();

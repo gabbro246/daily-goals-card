@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.2';
+  const VERSION = '0.6.3';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -394,7 +394,7 @@
     .chart-scroll.scrollable{overflow-x:auto;overscroll-behavior-inline:contain}
     .chart-canvas{position:relative;height:178px;min-width:0;margin:0 auto}
     .status-chart{position:absolute;inset:0 0 auto;width:100%;height:150px;overflow:visible}
-    .chart-goal{fill:none;stroke:var(--goal-unavailable);stroke-width:3;stroke-dasharray:1 2;stroke-linecap:round;vector-effect:non-scaling-stroke}
+    .chart-goal{fill:none;stroke:var(--goal-unavailable);stroke-width:3;stroke-dasharray:4 8;stroke-linecap:round;vector-effect:non-scaling-stroke}
     .chart-goal-label{position:absolute;right:2px;z-index:2;transform:translateY(-100%);padding-inline-start:4px;background:var(--card-background-color,#fff);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;pointer-events:none}
     .chart-axis-label{position:absolute;top:157px;transform:translateX(-50%);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;white-space:nowrap;pointer-events:none}
     .chart-day-hit{position:absolute;top:0;height:150px;border:0;background:transparent;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -409,7 +409,7 @@
     .chart-stack{stroke-linecap:butt;vector-effect:non-scaling-stroke;transition:opacity 180ms ease-in-out}
     .chart-stack.chart-cap{stroke-linecap:round}
     .chart-stack.hidden{opacity:0}
-    .chart-missing{stroke:var(--goal-unavailable);stroke-width:1.5;stroke-linecap:round;vector-effect:non-scaling-stroke}
+    .chart-missing{stroke:var(--goal-unavailable);stroke-width:2;stroke-linecap:round;vector-effect:non-scaling-stroke}
     .chart-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
     .chart-empty{height:178px;display:grid;place-items:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px)}
     .detail{display:block;margin-top:var(--ha-space-3,12px);text-align:center;color:var(--goal-muted)}
@@ -874,16 +874,22 @@
       });
       const bars=rows.map((row,index)=>{
         const x=100*(index+.5)/count;
-        if(row.value===null||row.status==='future')return `<line class="chart-missing" x1="${x}" y1="${base}" x2="${x}" y2="${base-2}"/>`;
+        if(row.status==='future')return '';
+        if(row.value===null){
+          if(row.status!=='no-data')return '';
+          const half=Math.min(.7,35/count),markerY=base-1.5;
+          return `<line class="chart-missing" x1="${x-half}" y1="${markerY}" x2="${x+half}" y2="${markerY}"/>`;
+        }
         if(this._isMultiCurrent(row)){
-          let total=0;
-          return (row.parts||[]).map((part,partIndex)=>{
+          let total=0,cap='';
+          const segments=(row.parts||[]).map((part,partIndex)=>{
             const value=Math.max(0,part.value??0),from=y(total),to=y(total+value);total+=value;
             const hidden=this._hiddenEntities.has(part.entity)?' hidden':'';
             const segment=`<line class="chart-stack${hidden}" x1="${x}" y1="${from}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
-            const cap=value?`<line class="chart-stack chart-cap${hidden}" x1="${x}" y1="${to}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`:'';
-            return segment+cap;
+            if(value)cap=`<line class="chart-stack chart-cap${hidden}" x1="${x}" y1="${to}" x2="${x}" y2="${to}" stroke-width="${barWidth}" style="stroke:${this._seriesColor(partIndex)}"/>`;
+            return segment;
           }).join('');
+          return segments+cap;
         }
         const valueY=Math.min(base-1.5,y(row.value));
         const bar=`<line class="chart-bar ${row.status}" x1="${x}" y1="${base}" x2="${x}" y2="${valueY}" stroke-width="${barWidth}"/>`;
