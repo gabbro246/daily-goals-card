@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.6';
+  const VERSION = '0.6.7';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -413,7 +413,9 @@
     .chart-stack{stroke-linecap:butt;vector-effect:non-scaling-stroke;transition:opacity 180ms ease-in-out}
     .chart-stack.chart-cap{stroke-linecap:round}
     .chart-stack.hidden{opacity:0}
-    .chart-line{fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+    .chart-area{fill:var(--series-color);fill-opacity:.32;stroke:none;transition:opacity 180ms ease-in-out}
+    .chart-area-line{fill:none;stroke:var(--series-color);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;transition:opacity 180ms ease-in-out}
+    .chart-area.hidden,.chart-area-line.hidden{opacity:0}
     .chart-empty{height:178px;display:grid;place-items:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px)}
     .detail{display:block;margin-top:var(--ha-space-3,12px);text-align:center;color:var(--goal-muted)}
     .oval-detail{margin-top:var(--ha-space-1,4px)}
@@ -920,8 +922,9 @@
       const today=this._today(),visibleEnd=row.key===today?Math.min(Date.now(),end):end;
       const points=this._hourly.filter(point=>point.time>=start&&point.time<=visibleEnd).map(point=>({...point}));
       if(row.key<=today&&row.value!==null&&visibleEnd>=start){
-        if(!points.length||points.at(-1).time<visibleEnd)points.push({time:visibleEnd,value:row.value});
-        else if(points.at(-1).time===visibleEnd)points[points.length-1].value=row.value;
+        const finalPoint={time:visibleEnd,value:row.value,parts:(row.parts||[]).map(part=>({...part}))};
+        if(!points.length||points.at(-1).time<visibleEnd)points.push(finalPoint);
+        else if(points.at(-1).time===visibleEnd)points[points.length-1]=finalPoint;
       }
       if(!points.length)return this._view(`<div class="chart-empty">${escapeHTML(this._t('hourlyUnavailable'))}</div>`);
       const base=145,top=9,plotHeight=base-top;
@@ -929,8 +932,19 @@
       const ceiling=Math.max(1,...scaleValues)*1.08;
       const x=time=>100*Math.max(0,Math.min(1,(time-start)/(end-start)));
       const y=value=>base-Math.max(0,value)/ceiling*plotHeight;
-      let path=points.map((point,index)=>`${index?'L':'M'} ${x(point.time)} ${y(point.value)}`).join(' ');
-      if(points.length===1)path+=` l .01 0`;
+      const entities=this._entities();
+      const stacks=points.map(point=>{
+        const values=new Map((point.parts||[]).map(part=>[part.entity,Math.max(0,part.value??0)]));
+        let total=0;
+        return entities.map(entity=>{const lower=total;total+=values.get(entity)??0;return {lower,upper:total}});
+      });
+      const areas=entities.map((entity,entityIndex)=>{
+        const upper=points.map((point,index)=>`${index?'L':'M'} ${x(point.time)} ${y(stacks[index][entityIndex].upper)}`).join(' ');
+        const lower=points.map((point,index)=>`L ${x(point.time)} ${y(stacks[index][entityIndex].lower)}`).reverse().join(' ');
+        const hidden=this._hiddenEntities.has(entity)?' hidden':'';
+        const style=`style="--series-color:${this._seriesColor(entityIndex)}"`;
+        return `<path class="chart-area${hidden}" d="${upper} ${lower} Z" ${style}/><path class="chart-area-line${hidden}" d="${upper}" ${style}/>`;
+      }).join('');
       const goalY=row.goal===null?null:y(row.goal);
       const goal=goalY===null?'':`<path class="chart-goal" d="M .5 ${goalY} H 99.5"/>`;
       const maximum=this._config?.direction==='max';
@@ -938,7 +952,7 @@
       const formatTime=time=>formatter('DateTimeFormat',this._locale(),{timeZone:this._tz(),hour:'numeric'}).format(new Date(time));
       const labels=[0,.25,.5,.75].map(fraction=>`<span class="chart-axis-label${fraction===0?' start':''}" style="left:${100*fraction}%">${escapeHTML(formatTime(start+(end-start)*fraction))}</span>`).join('');
       const hit=this._chartDayButton(row,0,100);
-      const content=`<div class="chart-canvas" aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${goal}<path class="chart-line chart-bar ${row.status}" d="${path}"/></svg>${goalLabel}${labels}${hit}</div>`;
+      const content=`<div class="chart-canvas" aria-label="${escapeHTML(this._t('progressChart'))}"><svg class="status-chart" viewBox="0 0 100 150" preserveAspectRatio="none" aria-hidden="true">${areas}${goal}</svg>${goalLabel}${labels}${hit}</div>`;
       return this._view(content);
     }
     _graphView(kind){
@@ -960,9 +974,8 @@
       const prefix=weekOffset(year,month,day,weekStartsSunday(this._config));
       return this._view(this._dayGrid(this._days,{prefix}));
     }
-    _seriesLegend(){
+    _seriesLegend(row=this._days.find(day=>day.key===this._today())){
       if(!shouldShowLegend(this._config))return '';
-      const today=this._today(),row=this._days.find(day=>day.key===today);
       if(!row?.parts?.length)return '';
       const unit=this._unit(),interactive=row.parts.length>1;
       const items=row.parts.map((part,index)=>{
@@ -1012,7 +1025,7 @@
         else if(kind==='month')stage=this._monthView();
         else if(kind==='rolling-month')stage=this._rollingMonthView();
         else stage=this._miniMonths();
-        const legend=!this._loading&&!this._error&&!(this._viewMode==='chart'&&kind==='day')?this._seriesLegend():'';
+        const legend=!this._loading&&!this._error?this._seriesLegend(this._viewMode==='chart'&&kind==='day'?rows[0]:undefined):'';
         const state=this._stateText(kind);
         const chartView=this._viewMode==='chart';
         const viewLabel=this._t(chartView?'showCircles':'showChart');

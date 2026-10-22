@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.7
+- Split the one-day graph into colored areas so each measurement's contribution is visible.
+
 ## 0.6.6
 - Simplified hourly and monthly graph labels.
 - Kept long-range graphs in place when selecting a bar.
