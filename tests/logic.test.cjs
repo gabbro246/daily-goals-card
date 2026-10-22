@@ -237,7 +237,10 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.doesNotMatch(source,/\.month-grid \.dot\{width:clamp/);
  assert.doesNotMatch(source,/\.strip \.dot\{width:28px/);
  assert.match(source,/\.month-collection\{display:grid;grid-template-columns:repeat\(3,/);
- assert.match(source,/@container \(max-width:300px\)\{\.month-collection\{grid-template-columns:repeat\(2,/);
+ assert.match(source,/@container \(max-width:300px\)\{\s+\.month-collection\{grid-template-columns:1fr/);
+ assert.match(source,/\.strip \.dot\{width:min\(12px,100%\);border-width:1\.5px;font-size:0\}/);
+ assert.match(source,/\.strip \.dot\.progress,\.strip \.dot\.multi-current\{border-width:0\}/);
+ assert.match(source,/\.strip \.dot \.progress-ring \.track[^\n]+stroke-width:1\.5/);
  assert.match(source,/\.many-months\.unscrolled\{max-height:none;overflow:visible\}/);
  assert.doesNotMatch(source,/class="summary"/);
 });

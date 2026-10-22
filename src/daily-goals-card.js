@@ -439,8 +439,19 @@
     .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px}
     .muted{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);text-align:center}
     .error{color:var(--goal-error);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-normal,1.6);text-align:center;padding:var(--ha-space-4,16px)}
-    @container (max-width:300px){.month-collection{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{--day-gap:3px 1px}}
-    @container (max-width:220px){.month-collection{grid-template-columns:1fr}}
+    @container (max-width:300px){
+      .month-collection{grid-template-columns:1fr;gap:var(--ha-space-3,12px)}
+      .mini-grid{--day-gap:3px 1px}
+      .strip .dot{width:min(12px,100%);border-width:1.5px;font-size:0}
+      .strip .dot > span{display:none}
+      .strip .dot.progress,.strip .dot.multi-current{border-width:0}
+      .strip .dot.no-data.marker-filled,.strip .dot.no-goal.marker-filled{border-width:1.5px}
+      .strip .dot .progress-ring .track,.strip .dot .progress-ring .value,.strip .dot .progress-ring .series-value,.strip .dot .progress-ring .series-cap,.strip .dot .unavailable-ring circle{stroke-width:1.5}
+      .strip .dot.marker-symbols::after{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
+      .strip .dot.met.marker-symbols::after{content:"\\2713"}
+      .strip .dot.missed.marker-symbols::after{content:"\\00d7"}
+      .strip .dot.no-data.marker-symbols::after,.strip .dot.no-goal.marker-symbols::after{content:"\\2013"}
+    }
   `;
 
   class DailyGoalsCard extends HTMLElement {

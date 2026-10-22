@@ -3,6 +3,7 @@
 ## 0.7.0
 - Cards can now be resized to six dashboard columns while keeping outlines and progress lines clear.
 - The daily progress oval is narrower without becoming proportionally shorter.
+- Narrow cards show one month per row and use matching compact markers for week ranges.
 
 ## 0.6.13
 - Added optional smoothing for five-minute graphs.
