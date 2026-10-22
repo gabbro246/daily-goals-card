@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.7.1';
+  const VERSION = '0.7.2';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const FIVE_MINUTE_MS = 300000;

@@ -1,9 +1,10 @@
 # Changelog
 
-## 0.7.1
+## 0.7.2
 - Fixed an issue that distorted the daily oval and changed its line thickness when the card was resized.
 - Fixed an issue that changed day markers, mini markers, and mobile spacing in standard layouts.
-- Fixed narrow layouts so months appear one per row and seven-day ranges use compact markers when needed.
+- Fixed narrow multi-month layouts by showing one month per row on cards 300 pixels wide or narrower.
+- Fixed seven-day rows on cards 300 pixels wide or narrower by using 12×12 markers instead of 32×32 markers.
 
 ## 0.7.0
 - Cards can now be resized to six dashboard columns while keeping outlines and progress lines clear.
