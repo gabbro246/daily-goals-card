@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.12
+- Added five-minute progress, direct point-to-point graph shapes, and one result color for completed days.
+
 ## 0.6.11
 - Balanced the spacing at the left and right edges of one-day graphs.
 

@@ -626,6 +626,8 @@ test('graph helpers keep hourly progress cumulative and use marker-scale bar wid
  const maximum=L.hourlyProgressFromStats(response,['sensor.one','sensor.two'],'max');
  assert.deepEqual(Array.from(maximum,value=>value.value),[15,27]);
  assert.equal(maximum[0].time,Date.parse('2026-10-20T01:00:00Z'));
+ const fiveMinute=L.hourlyProgressFromStats(response,['sensor.one','sensor.two'],'max',5*60*1000);
+ assert.equal(fiveMinute[0].time,Date.parse('2026-10-20T00:05:00Z'));
  const change=L.hourlyProgressFromStats(response,['sensor.one','sensor.two'],'change');
  assert.deepEqual(Array.from(change,value=>value.value),[3,10]);
  const history=new Map([
@@ -647,10 +649,6 @@ test('graph helpers keep hourly progress cumulative and use marker-scale bar wid
  assert.equal(L.chartBarWidth(9),3);
  assert.equal(L.chartBarWidth(31),3);
  assert.equal(L.chartBarWidth(32),1.5);
- const curve=L.monotoneCurvePath([{x:0,y:10},{x:1,y:0},{x:2,y:5}]);
- assert.match(curve,/^M 0 10 C /);
- assert.doesNotMatch(curve,/^M 0 10 C [^ ]+ 10 /);
- assert.match(L.monotoneCurvePath([{x:0,y:10},{x:1,y:0},{x:2,y:5}],true),/^L 2 5 C /);
 });
 
 test('graph view stays focused on goal status and uses the native-style header switch',()=>{
@@ -761,10 +759,14 @@ test('graph view stays focused on goal status and uses the native-style header s
  assert.equal(otherCard._viewMode,'circles');
 });
 
-test('single-day graph requests hourly statistics and renders stacked entity areas',async()=>{
+test('single-day graph uses five-minute entity areas today and one result area for finished days',async()=>{
  const card=new (elements.get('daily-goals-card'))();
  const key='2026-10-20';
  let request;
+ const statistics={
+  'sensor.one':[{start:key+'T00:00:00Z',max:10},{start:key+'T01:00:00Z',max:30}],
+  'sensor.two':[{start:key+'T00:00:00Z',max:5},{start:key+'T01:00:00Z',max:20}],
+ };
  card._period={start:key,end:key};
  card._config={entities:['sensor.one','sensor.two'],goal:100,aggregation:'max',unit:'steps',show_legend:true};
  card._hass={config:{time_zone:'UTC'},locale:{language:'en'},states:{
@@ -772,24 +774,24 @@ test('single-day graph requests hourly statistics and renders stacked entity are
   'sensor.two':{attributes:{friendly_name:'Second counter'}},
  },callWS(message){
   request=message;
-  return Promise.resolve({
-   'sensor.one':[{start:key+'T00:00:00Z',max:10},{start:key+'T01:00:00Z',max:30}],
-   'sensor.two':[{start:key+'T00:00:00Z',max:5},{start:key+'T01:00:00Z',max:20}],
-  });
+  return Promise.resolve(statistics);
  }};
  card._days=[{key,value:50,goal:100,status:'missed',parts:[{entity:'sensor.one',value:30},{entity:'sensor.two',value:20}]}];
  const render=card._render;
  card._render=()=>{};
  await card._loadHourly();
- assert.equal(request.period,'hour');
+ assert.equal(request.period,'5minute');
  assert.deepEqual(Array.from(request.statistic_ids),['sensor.one','sensor.two']);
  assert.deepEqual(Array.from(card._hourly,point=>point.value),[15,50]);
+ assert.equal(card._hourly[0].time,Date.parse(key+'T00:05:00Z'));
  assert.deepEqual(Array.from(card._hourly[1].parts,part=>part.value),[30,20]);
+ card._today=()=>key;
  const graph=card._lineChart(card._days[0]);
  assert.equal((graph.match(/class="chart-area"/g)||[]).length,2);
- assert.match(graph,/class="chart-area" d="M 0\.5 145 C /);
+ assert.match(graph,/class="chart-area" d="M 0\.84375 /);
  assert.match(graph,/ 99\.5 [^ ]+ L 99\.5 /);
- assert.match(graph,/class="chart-area" d="M [^"]+ C [^"]+ L [^"]+ C [^"]+ Z" style="--series-color:var\(--color-1,#4269d0\)"/);
+ assert.match(graph,/class="chart-area" d="M [^"]+ L [^"]+ Z" style="--series-color:var\(--color-1,#4269d0\)"/);
+ assert.doesNotMatch(graph,/ C /);
  assert.doesNotMatch(graph,/chart-area-line/);
  assert.match(graph,/style="--series-color:var\(--color-2,#f4bd4a\)"/);
  assert.doesNotMatch(graph,/class="chart-line/);
@@ -811,6 +813,22 @@ test('single-day graph requests hourly statistics and renders stacked entity are
  assert.match(root.innerHTML,/class="series-legend"/);
  assert.match(root.innerHTML,/First counter/);
  assert.match(root.innerHTML,/30 steps/);
+
+ const finished={...card._days[0],status:'met'};
+ card._today=()=>L.keyPlus(key,1);
+ card._days=[finished];
+ const finishedGraph=card._lineChart(finished);
+ assert.equal((finishedGraph.match(/class="chart-area"/g)||[]).length,1);
+ assert.match(finishedGraph,/style="--series-color:var\(--goal-success\)"/);
+ assert.doesNotMatch(finishedGraph,/--color-[12]/);
+ assert.match(card._lineChart({...finished,status:'missed'}),/style="--series-color:var\(--goal-error\)"/);
+ card._render();
+ assert.doesNotMatch(root.innerHTML,/class="series-legend"/);
+
+ const periods=[];
+ card._hass.callWS=message=>{periods.push(message.period);return Promise.resolve(message.period==='5minute'?{}:statistics)};
+ await card._loadHourly(true);
+ assert.deepEqual(periods,['5minute','hour']);
  card._config.direction='max';
  const limitGraph=card._lineChart(card._days[0]);
  assert.match(limitGraph,/class="chart-goal limit"/);

@@ -22,7 +22,7 @@ The layout changes automatically for the selected period. Tap a day for its deta
 
 ### Switch between circles and a graph
 
-Use the button in the top-right corner to switch views. Date ranges show simple outcome-colored bars against the daily goal, while a single selected day shows each entity's hourly contribution as a stacked area. Tap a bar or the area chart to show the same daily details as the circle view.
+Use the button in the top-right corner to switch views. Date ranges show simple outcome-colored bars against the daily goal. The current day shows each entity's five-minute contribution as a stacked area, while completed days use one green or red total area. Tap a bar or the area chart to show the same daily details as the circle view.
 
 ## Install with HACS
 
