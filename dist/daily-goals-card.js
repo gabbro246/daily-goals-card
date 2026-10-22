@@ -413,7 +413,7 @@
     .chart-stack{stroke-linecap:butt;vector-effect:non-scaling-stroke;transition:opacity 180ms ease-in-out}
     .chart-stack.chart-cap{stroke-linecap:round}
     .chart-stack.hidden{opacity:0}
-    .chart-area{fill:var(--series-color);fill-opacity:.32;stroke:none;transition:opacity 180ms ease-in-out}
+    .chart-area{fill:var(--series-color);stroke:none;transition:opacity 180ms ease-in-out}
     .chart-area.hidden{opacity:0}
     .chart-empty{height:178px;display:grid;place-items:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px)}
     .detail{display:block;margin-top:var(--ha-space-3,12px);text-align:center;color:var(--goal-muted)}
@@ -937,9 +937,13 @@
         let total=0;
         return entities.map(entity=>{const lower=total;total+=values.get(entity)??0;return {lower,upper:total}});
       });
+      const curve=coordinates=>coordinates.slice(1).reduce((path,point,index)=>{
+        const previous=coordinates[index],third=(point.x-previous.x)/3;
+        return `${path} C ${previous.x+third} ${previous.y} ${point.x-third} ${point.y} ${point.x} ${point.y}`;
+      },`M ${coordinates[0].x} ${coordinates[0].y}`);
       const areas=entities.map((entity,entityIndex)=>{
-        const upper=points.map((point,index)=>`${index?'L':'M'} ${x(point.time)} ${y(stacks[index][entityIndex].upper)}`).join(' ');
-        const lower=points.map((point,index)=>`L ${x(point.time)} ${y(stacks[index][entityIndex].lower)}`).reverse().join(' ');
+        const upper=curve(points.map((point,index)=>({x:x(point.time),y:y(stacks[index][entityIndex].upper)})));
+        const lower=curve(points.map((point,index)=>({x:x(point.time),y:y(stacks[index][entityIndex].lower)})).reverse()).replace(/^M /,'L ');
         const hidden=this._hiddenEntities.has(entity)?' hidden':'';
         const style=`style="--series-color:${this._seriesColor(entityIndex)}"`;
         return `<path class="chart-area${hidden}" d="${upper} ${lower} Z" ${style}/>`;
