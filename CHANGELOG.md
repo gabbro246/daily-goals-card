@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.10
+- Smoothed one-day graph curves while keeping them within recorded values.
+
 ## 0.6.9
 - Made one-day stacked areas use solid colors and smooth curves.
 - Simplified goal and limit labels, and made maximum limit lines thinner.

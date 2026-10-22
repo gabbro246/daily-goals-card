@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.9';
+  const VERSION = '0.6.10';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -288,6 +288,32 @@
     return null;
   };
   const chartBarWidth = (count) => count<=8?10:count<=31?3:1.5;
+  const monotoneCurvePath = (coordinates,reverse=false) => {
+    const count=coordinates.length,command=reverse?'L':'M';
+    if(!count)return '';
+    if(count===1)return `${command} ${coordinates[0].x} ${coordinates[0].y}`;
+    const widths=coordinates.slice(1).map((point,index)=>point.x-coordinates[index].x);
+    const secants=widths.map((width,index)=>(coordinates[index+1].y-coordinates[index].y)/width);
+    const tangents=new Array(count);
+    tangents[0]=secants[0];tangents[count-1]=secants.at(-1);
+    for(let index=1;index<count-1;index++){
+      const before=secants[index-1],after=secants[index];
+      if(before===0||after===0||Math.sign(before)!==Math.sign(after)){tangents[index]=0;continue}
+      const previousWidth=widths[index-1],nextWidth=widths[index];
+      const previousWeight=2*nextWidth+previousWidth,nextWeight=nextWidth+2*previousWidth;
+      tangents[index]=(previousWeight+nextWeight)/(previousWeight/before+nextWeight/after);
+    }
+    const segments=widths.map((width,index)=>({
+      first:{x:coordinates[index].x+width/3,y:coordinates[index].y+tangents[index]*width/3},
+      second:{x:coordinates[index+1].x-width/3,y:coordinates[index+1].y-tangents[index+1]*width/3},
+    }));
+    if(reverse){
+      let path=`${command} ${coordinates.at(-1).x} ${coordinates.at(-1).y}`;
+      for(let index=count-2;index>=0;index--){const segment=segments[index],point=coordinates[index];path+=` C ${segment.second.x} ${segment.second.y} ${segment.first.x} ${segment.first.y} ${point.x} ${point.y}`;}
+      return path;
+    }
+    return segments.reduce((path,segment,index)=>{const point=coordinates[index+1];return `${path} C ${segment.first.x} ${segment.first.y} ${segment.second.x} ${segment.second.y} ${point.x} ${point.y}`},`${command} ${coordinates[0].x} ${coordinates[0].y}`);
+  };
   const css = `
     :host {
       display:block;
@@ -938,13 +964,9 @@
         let total=0;
         return entities.map(entity=>{const lower=total;total+=values.get(entity)??0;return {lower,upper:total}});
       });
-      const curve=coordinates=>coordinates.slice(1).reduce((path,point,index)=>{
-        const previous=coordinates[index],third=(point.x-previous.x)/3;
-        return `${path} C ${previous.x+third} ${previous.y} ${point.x-third} ${point.y} ${point.x} ${point.y}`;
-      },`M ${coordinates[0].x} ${coordinates[0].y}`);
       const areas=entities.map((entity,entityIndex)=>{
-        const upper=curve(points.map((point,index)=>({x:x(point.time),y:y(stacks[index][entityIndex].upper)})));
-        const lower=curve(points.map((point,index)=>({x:x(point.time),y:y(stacks[index][entityIndex].lower)})).reverse()).replace(/^M /,'L ');
+        const upper=monotoneCurvePath(points.map((point,index)=>({x:x(point.time),y:y(stacks[index][entityIndex].upper)})));
+        const lower=monotoneCurvePath(points.map((point,index)=>({x:x(point.time),y:y(stacks[index][entityIndex].lower)})),true);
         const hidden=this._hiddenEntities.has(entity)?' hidden':'';
         const style=`style="--series-color:${this._seriesColor(entityIndex)}"`;
         return `<path class="chart-area${hidden}" d="${upper} ${lower} Z" ${style}/>`;
@@ -1085,5 +1107,5 @@
   if(!window.customCards.some(c=>c.type==='daily-goals-card'))window.customCards.push({type:'daily-goals-card',name:translate(registrationLocale,'cardName'),description:translate(registrationLocale,'cardDescription'),preview:true});
   console.info(`%c DAILY GOALS CARD %c v${VERSION} `,'background:#03a9f4;color:white;font-weight:bold','background:#eee;color:#222');
   // Exposed only for programmatic tests; does not affect Home Assistant UI.
-  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,weekOffset,weekdayLabels,measurementEntities,shouldShowLegend,weekStartsSunday,finishedStyle,markerStyle,dailyFromStats,hourlyProgressFromStats,hourlyProgressFromHistory,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,chartBarWidth,translate,localizedAggregationOptions,localizedFormSchema,AGGREGATION_OPTIONS,STYLE_ROWS};
+  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,weekOffset,weekdayLabels,measurementEntities,shouldShowLegend,weekStartsSunday,finishedStyle,markerStyle,dailyFromStats,hourlyProgressFromStats,hourlyProgressFromHistory,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,chartBarWidth,monotoneCurvePath,translate,localizedAggregationOptions,localizedFormSchema,AGGREGATION_OPTIONS,STYLE_ROWS};
 })();

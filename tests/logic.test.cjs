@@ -647,6 +647,10 @@ test('graph helpers keep hourly progress cumulative and use marker-scale bar wid
  assert.equal(L.chartBarWidth(9),3);
  assert.equal(L.chartBarWidth(31),3);
  assert.equal(L.chartBarWidth(32),1.5);
+ const curve=L.monotoneCurvePath([{x:0,y:10},{x:1,y:0},{x:2,y:5}]);
+ assert.match(curve,/^M 0 10 C /);
+ assert.doesNotMatch(curve,/^M 0 10 C [^ ]+ 10 /);
+ assert.match(L.monotoneCurvePath([{x:0,y:10},{x:1,y:0},{x:2,y:5}],true),/^L 2 5 C /);
 });
 
 test('graph view stays focused on goal status and uses the native-style header switch',()=>{
