@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.7.2';
+  const VERSION = '0.7.3';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const FIVE_MINUTE_MS = 300000;
@@ -454,15 +454,15 @@
     @container (max-width:300px){
       .month-collection{grid-template-columns:1fr;gap:var(--ha-space-3,12px)}
       .mini-grid{--day-gap:3px 1px}
-      .strip .dot{width:min(12px,100%);height:auto;aspect-ratio:1;border-width:1.5px;font-size:0}
-      .strip .dot > span{display:none}
-      .strip .dot.progress,.strip .dot.multi-current{border-width:0}
-      .strip .dot.no-data.marker-filled,.strip .dot.no-goal.marker-filled{border-width:1.5px}
-      .strip .dot .progress-ring .track,.strip .dot .progress-ring .value,.strip .dot .progress-ring .series-value,.strip .dot .progress-ring .series-cap,.strip .dot .unavailable-ring circle{stroke-width:1.5;vector-effect:non-scaling-stroke}
-      .strip .dot.marker-symbols::after{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
-      .strip .dot.met.marker-symbols::after{content:"\\2713"}
-      .strip .dot.missed.marker-symbols::after{content:"\\00d7"}
-      .strip .dot.no-data.marker-symbols::after,.strip .dot.no-goal.marker-symbols::after{content:"\\2013"}
+      :is(.seven-columns,.month-grid) .dot{width:min(12px,100%);height:auto;aspect-ratio:1;border-width:1.5px;font-size:0}
+      :is(.seven-columns,.month-grid) .dot > span{display:none}
+      :is(.seven-columns,.month-grid) .dot.progress,:is(.seven-columns,.month-grid) .dot.multi-current{border-width:0}
+      :is(.seven-columns,.month-grid) .dot.no-data.marker-filled,:is(.seven-columns,.month-grid) .dot.no-goal.marker-filled{border-width:1.5px}
+      :is(.seven-columns,.month-grid) .dot .progress-ring .track,:is(.seven-columns,.month-grid) .dot .progress-ring .value,:is(.seven-columns,.month-grid) .dot .progress-ring .series-value,:is(.seven-columns,.month-grid) .dot .progress-ring .series-cap,:is(.seven-columns,.month-grid) .dot .unavailable-ring circle{stroke-width:1.5;vector-effect:non-scaling-stroke}
+      :is(.seven-columns,.month-grid) .dot.marker-symbols::after{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
+      :is(.seven-columns,.month-grid) .dot.met.marker-symbols::after{content:"\\2713"}
+      :is(.seven-columns,.month-grid) .dot.missed.marker-symbols::after{content:"\\00d7"}
+      :is(.seven-columns,.month-grid) .dot.no-data.marker-symbols::after,:is(.seven-columns,.month-grid) .dot.no-goal.marker-symbols::after{content:"\\2013"}
     }
   `;
 
@@ -1034,7 +1034,8 @@
     _weekView(){
       const columns=Math.min(7,this._days.length);
       const labels=this._days.slice(0,columns).map(row=>this._weekday(row.key));
-      return this._view(this._dayGrid(this._days,{className:'strip',labels,columns}));
+      const className=columns===7?'strip seven-columns':'strip';
+      return this._view(this._dayGrid(this._days,{className,labels,columns}));
     }
     _monthView(){
       const [year,month]=this._days[0].key.split('-').map(Number);

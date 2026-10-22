@@ -259,9 +259,9 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.match(source,/\.month-collection\{display:grid;grid-template-columns:repeat\(3,/);
  assert.match(source,/@media\(max-width:340px\)\{\.month-collection\{gap:/);
  assert.match(source,/@container \(max-width:300px\)\{\s+\.month-collection\{grid-template-columns:1fr/);
- assert.match(source,/\.strip \.dot\{width:min\(12px,100%\);height:auto;aspect-ratio:1;border-width:1\.5px;font-size:0\}/);
- assert.match(source,/\.strip \.dot\.progress,\.strip \.dot\.multi-current\{border-width:0\}/);
- assert.match(source,/\.strip \.dot \.progress-ring \.track[^\n]+stroke-width:1\.5;vector-effect:non-scaling-stroke/);
+ assert.match(source,/:is\(\.seven-columns,\.month-grid\) \.dot\{width:min\(12px,100%\);height:auto;aspect-ratio:1;border-width:1\.5px;font-size:0\}/);
+ assert.match(source,/:is\(\.seven-columns,\.month-grid\) \.dot\.progress,:is\(\.seven-columns,\.month-grid\) \.dot\.multi-current\{border-width:0\}/);
+ assert.match(source,/:is\(\.seven-columns,\.month-grid\) \.dot \.progress-ring \.track[^\n]+stroke-width:1\.5;vector-effect:non-scaling-stroke/);
  assert.match(source,/\.many-months\.unscrolled\{max-height:none;overflow:visible\}/);
  assert.doesNotMatch(source,/class="summary"/);
 });
@@ -381,6 +381,7 @@ test('short ranges show weekday headings once and calendars can start on Sunday'
  assert.equal((week.match(/class="dot missed/g)||[]).length,8);
  assert.equal((week.match(/>Mon<\/span>/g)||[]).length,1);
  assert.match(week,/style="--day-columns:7"/);
+ assert.match(week,/class="strip seven-columns"/);
  assert.doesNotMatch(week,/class="cell"/);
  assert.match(card._monthGrid(2025,1),/class="weekday">Mon<\/span>/);
  card._config.start_week_on_sunday=true;
