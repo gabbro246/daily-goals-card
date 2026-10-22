@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.10';
+  const VERSION = '0.6.11';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -946,6 +946,7 @@
       if(this._hourlyError||!this._hourly.length)return this._view(`<div class="chart-empty">${escapeHTML(this._t('hourlyUnavailable'))}</div>`);
       const start=zonedMidnight(row.key,this._tz()).getTime(),end=zonedMidnight(keyPlus(row.key,1),this._tz()).getTime();
       const today=this._today(),visibleEnd=row.key===today?Math.min(Date.now(),end):end;
+      const entities=this._entities();
       const points=this._hourly.filter(point=>point.time>=start&&point.time<=visibleEnd).map(point=>({...point}));
       if(row.key<=today&&row.value!==null&&visibleEnd>=start){
         const finalPoint={time:visibleEnd,value:row.value,parts:(row.parts||[]).map(part=>({...part}))};
@@ -953,12 +954,12 @@
         else if(points.at(-1).time===visibleEnd)points[points.length-1]=finalPoint;
       }
       if(!points.length)return this._view(`<div class="chart-empty">${escapeHTML(this._t('hourlyUnavailable'))}</div>`);
+      if(points[0].time>start)points.unshift({time:start,value:0,parts:entities.map(entity=>({entity,value:0}))});
       const base=145,top=9,plotHeight=base-top;
       const scaleValues=[row.goal,...points.map(point=>point.value)].filter(value=>value!==null&&Number.isFinite(value)).map(value=>Math.max(0,value));
       const ceiling=Math.max(1,...scaleValues)*1.08;
-      const x=time=>100*Math.max(0,Math.min(1,(time-start)/(end-start)));
+      const x=time=>.5+99*Math.max(0,Math.min(1,(time-start)/(end-start)));
       const y=value=>base-Math.max(0,value)/ceiling*plotHeight;
-      const entities=this._entities();
       const stacks=points.map(point=>{
         const values=new Map((point.parts||[]).map(part=>[part.entity,Math.max(0,part.value??0)]));
         let total=0;

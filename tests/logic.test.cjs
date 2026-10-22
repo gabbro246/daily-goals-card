@@ -787,6 +787,8 @@ test('single-day graph requests hourly statistics and renders stacked entity are
  assert.deepEqual(Array.from(card._hourly[1].parts,part=>part.value),[30,20]);
  const graph=card._lineChart(card._days[0]);
  assert.equal((graph.match(/class="chart-area"/g)||[]).length,2);
+ assert.match(graph,/class="chart-area" d="M 0\.5 145 C /);
+ assert.match(graph,/ 99\.5 [^ ]+ L 99\.5 /);
  assert.match(graph,/class="chart-area" d="M [^"]+ C [^"]+ L [^"]+ C [^"]+ Z" style="--series-color:var\(--color-1,#4269d0\)"/);
  assert.doesNotMatch(graph,/chart-area-line/);
  assert.match(graph,/style="--series-color:var\(--color-2,#f4bd4a\)"/);

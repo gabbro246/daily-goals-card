@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.11
+- Balanced the spacing at the left and right edges of one-day graphs.
+
 ## 0.6.10
 - Smoothed one-day graph curves while keeping them within recorded values.
 
