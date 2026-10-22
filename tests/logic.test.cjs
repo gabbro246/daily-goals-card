@@ -209,6 +209,7 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  card._hass={locale:{language:'en'},states:{'sensor.steps':{attributes:{unit_of_measurement:'steps'}}}};
  const day=card._dayView({key:'2026-10-19',value:25,goal:100,status:'progress'});
  assert.match(day,/viewBox="0 0 250 100"/);
+ assert.match(day,/preserveAspectRatio="none"/);
  assert.match(day,/d="M 125 8 H 200 A 42 42/);
  assert.match(day,/stroke-width="10"/);
  assert.match(day,/stroke-dasharray="25 100"/);
@@ -221,14 +222,14 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.match(source,/--goal-success:var\([^\n]+#43a047/);
  assert.match(source,/--goal-error:var\([^\n]+#db4437/);
  assert.doesNotMatch(source,/goal-small-(?:met|missed)/);
- assert.match(source,/\.dot\{border:3px solid var\(--goal-track\)[^\n]+width:32px;height:32px/);
- assert.match(source,/\.mini-dot\{[^\n]+width:12px;height:12px/);
+ assert.match(source,/\.dot\{border:3px solid var\(--goal-track\)[^\n]+width:min\(32px,100%\);height:auto;aspect-ratio:1/);
+ assert.match(source,/\.mini-dot\{[^\n]+width:min\(12px,100%\);height:auto;aspect-ratio:1/);
  assert.match(source,/\.mini-dot::after\{[^\n]+border:1\.5px solid var\(--goal-track\)/);
  assert.match(source,/\.dot\.met,.mini-dot\.met\{--marker-color:var\(--goal-success\)/);
  assert.match(source,/\.dot\.missed,.mini-dot\.missed\{--marker-color:var\(--goal-error\)/);
  assert.match(source,/\.dot\.met,.dot\.missed,.mini-dot\.met::after,.mini-dot\.missed::after\{background:var\(--marker-color\);border-color:var\(--marker-color\)/);
  assert.match(source,/\.dot\.progress,.dot\.multi-current\{border-width:0\}/);
- assert.match(source,/\.unavailable-ring circle\{fill:none;stroke:var\(--goal-unavailable\);stroke-linecap:round\}/);
+ assert.match(source,/\.unavailable-ring circle\{fill:none;stroke:var\(--goal-unavailable\);stroke-linecap:round;vector-effect:non-scaling-stroke\}/);
  assert.match(source,/\.dot\.future\{border-color:var\(--goal-unavailable\);color:var\(--goal-unavailable\)\}/);
  assert.match(source,/\.mini-dot\.future::after\{border-color:var\(--goal-unavailable\)\}/);
  assert.doesNotMatch(source,/\.dot\.future\{opacity:/);
@@ -236,6 +237,7 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.doesNotMatch(source,/\.month-grid \.dot\{width:clamp/);
  assert.doesNotMatch(source,/\.strip \.dot\{width:28px/);
  assert.match(source,/\.month-collection\{display:grid;grid-template-columns:repeat\(3,/);
+ assert.match(source,/@container \(max-width:300px\)\{\.month-collection\{grid-template-columns:repeat\(2,/);
  assert.match(source,/\.many-months\.unscrolled\{max-height:none;overflow:visible\}/);
  assert.doesNotMatch(source,/class="summary"/);
 });
@@ -392,6 +394,7 @@ test('every day view exposes toggleable day selection',()=>{
  card.shadowRoot.listeners.click(click);
  assert.equal(card._selected,row.key);
  assert.equal(Object.hasOwn(card.getGridOptions(),'rows'),false);
+ assert.equal(card.getGridOptions().min_columns,6);
 });
 test('card state uses remaining amount for a day and completion count for ranges',()=>{
  const Card=elements.get('daily-goals-card');

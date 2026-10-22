@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+- Cards can now be resized to six dashboard columns while keeping outlines and progress lines clear.
+- The daily progress oval is narrower without becoming proportionally shorter.
+
 ## 0.6.13
 - Added optional smoothing for five-minute graphs.
 

@@ -1,6 +1,6 @@
 {
   "name": "daily-goals-card",
-  "version": "0.6.13",
+  "version": "0.7.0",
   "private": true,
   "description": "Home Assistant custom Lovelace card with daily goals and Energy date picker synchronization",
   "scripts": {
