@@ -199,6 +199,24 @@ test('day states have independent filled, outlined, and symbol styles',()=>{
  assert.throws(()=>card.setConfig({entity:'sensor.steps',goal:100,smooth_graph:'yes'}),/smooth_graph/);
 });
 
+test('daily oval uses circular ends and a fixed ten-pixel stroke at every size',()=>{
+ const wide=L.ovalPath(400,160,10);
+ assert.equal(wide.radius,75);
+ assert.match(wide.path,/^M 200 5 H 320 A 75 75 /);
+ assert.equal((wide.path.match(/A 75 75/g)||[]).length,4);
+ const narrow=L.ovalPath(300,112,10);
+ assert.equal(narrow.radius,51);
+ assert.match(narrow.path,/^M 150 5 H 244 A 51 51 /);
+ assert.equal(narrow.stroke,10);
+ const Card=elements.get('daily-goals-card'),card=new Card();
+ const pathAttributes=[{},{}];
+ const svg={setAttribute(name,value){this[name]=value},querySelectorAll(){return pathAttributes.map(attributes=>({setAttribute(name,value){attributes[name]=value}}))}};
+ const oval={getBoundingClientRect(){return {width:400,height:160}},querySelector(){return svg}};
+ card._syncOvalGeometry({querySelector(){return oval}});
+ assert.equal(svg.viewBox,'0 0 400 160');
+ assert.deepEqual(pathAttributes.map(attributes=>attributes.d),[wide.path,wide.path]);
+});
+
 test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  const Card=elements.get('daily-goals-card');
  const card=new Card();
@@ -209,8 +227,8 @@ test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
  card._hass={locale:{language:'en'},states:{'sensor.steps':{attributes:{unit_of_measurement:'steps'}}}};
  const day=card._dayView({key:'2026-10-19',value:25,goal:100,status:'progress'});
  assert.match(day,/viewBox="0 0 250 100"/);
- assert.match(day,/preserveAspectRatio="none"/);
- assert.match(day,/d="M 125 8 H 200 A 42 42/);
+ assert.match(day,/preserveAspectRatio="xMidYMid meet"/);
+ assert.match(day,/d="M 125 5 H 200 A 45 45/);
  assert.match(day,/stroke-width="10"/);
  assert.match(day,/stroke-dasharray="25 100"/);
 });
@@ -222,14 +240,16 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.match(source,/--goal-success:var\([^\n]+#43a047/);
  assert.match(source,/--goal-error:var\([^\n]+#db4437/);
  assert.doesNotMatch(source,/goal-small-(?:met|missed)/);
- assert.match(source,/\.dot\{border:3px solid var\(--goal-track\)[^\n]+width:min\(32px,100%\);height:auto;aspect-ratio:1/);
- assert.match(source,/\.mini-dot\{[^\n]+width:min\(12px,100%\);height:auto;aspect-ratio:1/);
+ assert.match(source,/\.oval\{width:min\(92%,400px\);height:112px;height:clamp\(112px,40cqi,184px\)/);
+ assert.match(source,/\.oval path\{vector-effect:non-scaling-stroke\}/);
+ assert.match(source,/\.dot\{border:3px solid var\(--goal-track\)[^\n]+width:32px;height:32px/);
+ assert.match(source,/\.mini-dot\{[^\n]+width:12px;height:12px/);
  assert.match(source,/\.mini-dot::after\{[^\n]+border:1\.5px solid var\(--goal-track\)/);
  assert.match(source,/\.dot\.met,.mini-dot\.met\{--marker-color:var\(--goal-success\)/);
  assert.match(source,/\.dot\.missed,.mini-dot\.missed\{--marker-color:var\(--goal-error\)/);
  assert.match(source,/\.dot\.met,.dot\.missed,.mini-dot\.met::after,.mini-dot\.missed::after\{background:var\(--marker-color\);border-color:var\(--marker-color\)/);
  assert.match(source,/\.dot\.progress,.dot\.multi-current\{border-width:0\}/);
- assert.match(source,/\.unavailable-ring circle\{fill:none;stroke:var\(--goal-unavailable\);stroke-linecap:round;vector-effect:non-scaling-stroke\}/);
+ assert.match(source,/\.unavailable-ring circle\{fill:none;stroke:var\(--goal-unavailable\);stroke-linecap:round\}/);
  assert.match(source,/\.dot\.future\{border-color:var\(--goal-unavailable\);color:var\(--goal-unavailable\)\}/);
  assert.match(source,/\.mini-dot\.future::after\{border-color:var\(--goal-unavailable\)\}/);
  assert.doesNotMatch(source,/\.dot\.future\{opacity:/);
@@ -237,10 +257,11 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.doesNotMatch(source,/\.month-grid \.dot\{width:clamp/);
  assert.doesNotMatch(source,/\.strip \.dot\{width:28px/);
  assert.match(source,/\.month-collection\{display:grid;grid-template-columns:repeat\(3,/);
+ assert.match(source,/@media\(max-width:340px\)\{\.month-collection\{gap:/);
  assert.match(source,/@container \(max-width:300px\)\{\s+\.month-collection\{grid-template-columns:1fr/);
- assert.match(source,/\.strip \.dot\{width:min\(12px,100%\);border-width:1\.5px;font-size:0\}/);
+ assert.match(source,/\.strip \.dot\{width:min\(12px,100%\);height:auto;aspect-ratio:1;border-width:1\.5px;font-size:0\}/);
  assert.match(source,/\.strip \.dot\.progress,\.strip \.dot\.multi-current\{border-width:0\}/);
- assert.match(source,/\.strip \.dot \.progress-ring \.track[^\n]+stroke-width:1\.5/);
+ assert.match(source,/\.strip \.dot \.progress-ring \.track[^\n]+stroke-width:1\.5;vector-effect:non-scaling-stroke/);
  assert.match(source,/\.many-months\.unscrolled\{max-height:none;overflow:visible\}/);
  assert.doesNotMatch(source,/class="summary"/);
 });

@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.7.0';
+  const VERSION = '0.7.1';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const FIVE_MINUTE_MS = 300000;
@@ -304,6 +304,17 @@
     }
     return path;
   };
+  const ovalPath = (width,height,stroke=10) => {
+    const compact=value=>Number(value.toFixed(3));
+    const w=Math.max(0,Number(width)||0),h=Math.max(0,Number(height)||0),line=Math.max(0,Number(stroke)||0);
+    const inset=Math.min(line/2,w/2,h/2);
+    const radius=Math.max(0,Math.min((w-line)/2,(h-line)/2));
+    const centerX=w/2,centerY=h/2;
+    const left=inset,right=w-inset,top=centerY-radius,bottom=centerY+radius;
+    const leftJoin=left+radius,rightJoin=right-radius;
+    const path=`M ${compact(centerX)} ${compact(top)} H ${compact(rightJoin)} A ${compact(radius)} ${compact(radius)} 0 0 1 ${compact(right)} ${compact(centerY)} A ${compact(radius)} ${compact(radius)} 0 0 1 ${compact(rightJoin)} ${compact(bottom)} H ${compact(leftJoin)} A ${compact(radius)} ${compact(radius)} 0 0 1 ${compact(left)} ${compact(centerY)} A ${compact(radius)} ${compact(radius)} 0 0 1 ${compact(leftJoin)} ${compact(top)} H ${compact(centerX)}`;
+    return {width:compact(w),height:compact(h),stroke:compact(line),radius:compact(radius),path};
+  };
   const css = `
     :host {
       display:block;
@@ -350,7 +361,7 @@
     .oval-text .unit{font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);color:var(--goal-muted)}
     .strip,.month-grid,.mini-grid{display:grid;grid-template-columns:repeat(var(--day-columns,7),minmax(0,1fr));gap:var(--day-gap,var(--ha-space-2,8px) 2px);place-items:center;width:100%;max-width:var(--grid-width,500px);margin:0 auto}
     .weekday,.month-button{color:var(--goal-muted)}
-    .dot{border:3px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:min(32px,100%);height:auto;aspect-ratio:1;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
+    .dot{border:3px solid var(--goal-track);background:transparent;color:var(--goal-muted);border-radius:var(--ha-border-radius-circle,50%);display:grid;place-items:center;position:relative;width:32px;height:32px;padding:0;box-sizing:border-box;font-family:inherit;font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:1;cursor:pointer}
     .dot > span{position:relative;z-index:1}
     .oval:focus-visible,.dot:focus-visible,.mini-dot:focus-visible,.month-button:focus-visible,.drillback:focus-visible{outline:2px solid var(--goal-focus);outline-offset:2px}
     .dot[aria-pressed=true]{box-shadow:0 0 0 2px var(--card-background-color,#fff),0 0 0 4px var(--goal-focus)}
@@ -367,16 +378,16 @@
     .dot.future{border-color:var(--goal-unavailable);color:var(--goal-unavailable)}
     .dot.multi-current{background:transparent;border-color:transparent;color:var(--goal-muted)}
     .progress-ring,.unavailable-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
-    .progress-ring .track{fill:none;stroke:var(--goal-track);vector-effect:non-scaling-stroke}
-    .progress-ring .value{fill:none;stroke:var(--goal-color);stroke-linecap:round;vector-effect:non-scaling-stroke}
-    .progress-ring .series-value,.progress-ring .series-cap{fill:none;vector-effect:non-scaling-stroke}
-    .unavailable-ring circle{fill:none;stroke:var(--goal-unavailable);stroke-linecap:round;vector-effect:non-scaling-stroke}
+    .progress-ring .track{fill:none;stroke:var(--goal-track)}
+    .progress-ring .value{fill:none;stroke:var(--goal-color);stroke-linecap:round}
+    .progress-ring .series-value,.progress-ring .series-cap{fill:none}
+    .unavailable-ring circle{fill:none;stroke:var(--goal-unavailable);stroke-linecap:round}
     .month-grid{--grid-width:430px}
     .month-collection{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--ha-space-4,16px) var(--ha-space-2,8px);width:100%}
     .mini-month{padding:0;min-width:0}
     .month-button{display:block;width:100%;border:0;background:none;padding:0;text-align:left;font-family:inherit;margin:0 0 var(--ha-space-2,8px);cursor:pointer}
     .mini-grid{--day-gap:var(--ha-space-1,4px) 2px;max-width:none}
-    .mini-dot{position:relative;width:min(12px,100%);height:auto;aspect-ratio:1;border:0;background:transparent;padding:0;border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box;cursor:pointer}
+    .mini-dot{position:relative;width:12px;height:12px;border:0;background:transparent;padding:0;border-radius:var(--ha-border-radius-circle,50%);box-sizing:border-box;cursor:pointer}
     .mini-dot::after{content:"";position:absolute;inset:0;border:1.5px solid var(--goal-track);border-radius:inherit;box-sizing:border-box}
     .mini-dot.marker-symbols::after{inset:0;border:0;background:transparent;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
     .mini-dot.met.marker-symbols::after{content:"\\2713";color:var(--goal-success)}
@@ -388,7 +399,7 @@
     .mini-dot.future::after{border-color:var(--goal-unavailable)}
     .mini-dot.multi-current::after{background:transparent;border:0}
     .mini-dot[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--goal-focus)}
-    .mini-dot .progress-ring,.mini-dot .unavailable-ring{inset:0;width:100%;height:100%}
+    .mini-dot .progress-ring,.mini-dot .unavailable-ring{inset:0;width:12px;height:12px}
     .many-months{max-height:320px;overflow:auto;width:100%;padding:0;box-sizing:border-box}
     .many-months.unscrolled{max-height:none;overflow:visible}
     .many-months .mini-grid{--day-gap:3px 1px}
@@ -439,14 +450,15 @@
     .detail strong{color:var(--goal-ink);font-size:var(--ha-font-size-m,14px);font-weight:var(--ha-font-weight-medium,500);line-height:var(--ha-line-height-normal,1.6);letter-spacing:.1px}
     .muted{color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-condensed,1.2);text-align:center}
     .error{color:var(--goal-error);font-size:var(--ha-font-size-s,12px);font-weight:var(--ha-font-weight-normal,400);line-height:var(--ha-line-height-normal,1.6);text-align:center;padding:var(--ha-space-4,16px)}
+    @media(max-width:340px){.month-collection{gap:var(--ha-space-3,12px) var(--ha-space-1,4px)}.mini-grid{--day-gap:3px 1px}}
     @container (max-width:300px){
       .month-collection{grid-template-columns:1fr;gap:var(--ha-space-3,12px)}
       .mini-grid{--day-gap:3px 1px}
-      .strip .dot{width:min(12px,100%);border-width:1.5px;font-size:0}
+      .strip .dot{width:min(12px,100%);height:auto;aspect-ratio:1;border-width:1.5px;font-size:0}
       .strip .dot > span{display:none}
       .strip .dot.progress,.strip .dot.multi-current{border-width:0}
       .strip .dot.no-data.marker-filled,.strip .dot.no-goal.marker-filled{border-width:1.5px}
-      .strip .dot .progress-ring .track,.strip .dot .progress-ring .value,.strip .dot .progress-ring .series-value,.strip .dot .progress-ring .series-cap,.strip .dot .unavailable-ring circle{stroke-width:1.5}
+      .strip .dot .progress-ring .track,.strip .dot .progress-ring .value,.strip .dot .progress-ring .series-value,.strip .dot .progress-ring .series-cap,.strip .dot .unavailable-ring circle{stroke-width:1.5;vector-effect:non-scaling-stroke}
       .strip .dot.marker-symbols::after{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
       .strip .dot.met.marker-symbols::after{content:"\\2713"}
       .strip .dot.missed.marker-symbols::after{content:"\\00d7"}
@@ -545,12 +557,23 @@
       if(this._resizeObserver||typeof ResizeObserver==='undefined')return;
       const card=this.shadowRoot?.querySelector?.('ha-card');if(!card)return;
       this._resizeObserver=new ResizeObserver((entries)=>{
+        this._syncOvalGeometry();
         const height=Math.round(entries[0]?.contentRect?.height||card.offsetHeight||0);
         if(!height||height===this._lastHeight)return;
         this._lastHeight=height;
         this.dispatchEvent(new CustomEvent('card-updated',{bubbles:true,composed:true}));
       });
       this._resizeObserver.observe(card);
+    }
+    _syncOvalGeometry(root=this.shadowRoot){
+      const oval=root?.querySelector?.('.oval'),svg=oval?.querySelector?.('svg');
+      if(!oval||!svg)return;
+      const bounds=oval.getBoundingClientRect?.();
+      const width=bounds?.width||oval.clientWidth||0,height=bounds?.height||oval.clientHeight||0;
+      if(!width||!height)return;
+      const geometry=ovalPath(width,height,10);
+      svg.setAttribute('viewBox',`0 0 ${geometry.width} ${geometry.height}`);
+      for(const path of svg.querySelectorAll('path'))path.setAttribute('d',geometry.path);
     }
     _tz(){return this._hass?.config?.time_zone||formatter('DateTimeFormat',undefined).resolvedOptions().timeZone||'UTC'}
     _locale(){return this._hass?.locale?.language||browserLocale()}
@@ -856,14 +879,14 @@
     }
     _dayView(row){
       const unit=this._unit(),pct=this._progress(row);
-      const path='M 125 8 H 200 A 42 42 0 0 1 242 50 A 42 42 0 0 1 200 92 H 50 A 42 42 0 0 1 8 50 A 42 42 0 0 1 50 8 H 125';
+      const path=ovalPath(250,100,10).path;
       const label=`${this._formatDate(row.key)}: ${this._label(row)}. ${this._format(row.value)} ${unit}. ${this._t('goalAria',{value:this._format(row.goal),unit})}`;
       const multiCurrent=this._isMultiCurrent(row);
       const valuePath=multiCurrent?this._stackedPath(row,path):`<path class="value" d="${path}" pathLength="100" stroke-width="10" fill="none" stroke-dasharray="${pct} 100"/>`;
       const selected=this._selected===row.key;
       const calculation=selected?`<span class="calculation">${escapeHTML(this._aggregationDetail())}</span>`:'';
       const detail=selected?this._selectionDetail(true):'';
-      const content=`<svg viewBox="0 0 250 100" preserveAspectRatio="none" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="10" fill="none"/>${valuePath}</svg><span class="oval-content"><span class="oval-text">${calculation}<strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span>${detail}</span>`;
+      const content=`<svg viewBox="0 0 250 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="track" d="${path}" pathLength="100" stroke-width="10" fill="none"/>${valuePath}</svg><span class="oval-content"><span class="oval-text">${calculation}<strong class="measurement">${this._format(row.value)}</strong><span class="unit">${escapeHTML(unit)}</span></span>${detail}</span>`;
       return `<div class="fill">${this._dayButton(row,`oval ${row.status}${multiCurrent?' multi-current':''}`,content,label)}</div>`;
     }
     _aggregationDetail(){
@@ -1083,6 +1106,7 @@
         const viewIcon=chartView?'mdi:calendar-month-outline':'mdi:chart-bar';
         const viewToggle=`<ha-icon-button class="view-toggle" data-view-toggle label="${escapeHTML(viewLabel)}"><ha-icon icon="${viewIcon}"></ha-icon></ha-icon-button>`;
         root.innerHTML=`<div class="header"><div class="header-icon" aria-hidden="true"><ha-state-icon></ha-state-icon></div><div class="header-info"><div class="name">${escapeHTML(title)}</div><div class="subtitle">${escapeHTML(state)}</div></div>${viewToggle}</div><div class="body">${stage}${legend}</div>`;
+        this._syncOvalGeometry(root);
         const stateIcon=root.querySelector('ha-state-icon');
         if(stateIcon){stateIcon.hass=hass;stateIcon.stateObj=hass.states?.[primary];if(c.icon)stateIcon.icon=c.icon;}
       } finally {
@@ -1133,5 +1157,5 @@
   if(!window.customCards.some(c=>c.type==='daily-goals-card'))window.customCards.push({type:'daily-goals-card',name:translate(registrationLocale,'cardName'),description:translate(registrationLocale,'cardDescription'),preview:true});
   console.info(`%c DAILY GOALS CARD %c v${VERSION} `,'background:#03a9f4;color:white;font-weight:bold','background:#eee;color:#222');
   // Exposed only for programmatic tests; does not affect Home Assistant UI.
-  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,weekOffset,weekdayLabels,measurementEntities,shouldShowLegend,weekStartsSunday,finishedStyle,markerStyle,dailyFromStats,hourlyProgressFromStats,hourlyProgressFromHistory,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,chartBarWidth,cubicBSplinePath,translate,localizedAggregationOptions,localizedFormSchema,AGGREGATION_OPTIONS,STYLE_ROWS};
+  if (typeof window.__DAILY_GOALS_TEST__!=='undefined') window.__DAILY_GOALS_TEST__={numeric,keyPlus,dayDiff,dateParts,zonedMidnight,makeKeys,daysInMonth,weekOffset,weekdayLabels,measurementEntities,shouldShowLegend,weekStartsSunday,finishedStyle,markerStyle,dailyFromStats,hourlyProgressFromStats,hourlyProgressFromHistory,dailyFromHistory,goalFromHistory,evaluate,getLayout,relevantEnergyCollection,chartBarWidth,cubicBSplinePath,ovalPath,translate,localizedAggregationOptions,localizedFormSchema,AGGREGATION_OPTIONS,STYLE_ROWS};
 })();
