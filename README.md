@@ -24,6 +24,8 @@ The layout changes automatically for the selected period. Tap a day for its deta
 
 Use the button in the top-right corner to switch views. Date ranges show simple outcome-colored bars against the daily goal. The current day shows each entity's five-minute contribution as a stacked area, while completed days use one green or red total area. Tap a bar or the area chart to show the same daily details as the circle view.
 
+Enable **Smooth five-minute graph** in the card editor, or set `smooth_graph: true` in YAML, to round five-minute graph shapes with a cubic B-spline. It is off by default and does not smooth hourly fallback data.
+
 ## Install with HACS
 
 Make sure you have [HACS](https://hacs.xyz/) installed in Home Assistant.

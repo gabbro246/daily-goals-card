@@ -125,12 +125,15 @@ test('measurement entities support legacy cards and prefer plural config',()=>{
 test('legend visibility is controlled by one boolean setting',()=>{
  const Card=elements.get('daily-goals-card');
  assert.equal(Card.getStubConfig({},['sensor.one']).show_legend,false);
+ assert.equal(Card.getStubConfig({},['sensor.one']).smooth_graph,false);
  assert.equal(L.shouldShowLegend({entities:['sensor.one']}),false);
  assert.equal(L.shouldShowLegend({entities:['sensor.one','sensor.two']}),false);
  assert.equal(L.shouldShowLegend({entities:['sensor.one'],show_legend:true}),true);
  assert.equal(L.shouldShowLegend({entities:['sensor.one','sensor.two'],show_legend:false}),false);
  const legend=L.localizedFormSchema('en').find(field=>field.name==='show_legend');
  assert.equal(typeof legend.selector.boolean,'object');
+ const smoothing=L.localizedFormSchema('en').find(field=>field.name==='smooth_graph');
+ assert.equal(typeof smoothing.selector.boolean,'object');
 });
 test('day states have independent filled, outlined, and symbol styles',()=>{
  const Card=elements.get('daily-goals-card');
@@ -156,6 +159,7 @@ test('day states have independent filled, outlined, and symbol styles',()=>{
  const Editor=elements.get('daily-goals-card-editor');
  const editor=new Editor();
  editor.setConfig({entity:'sensor.steps',goal:100});
+ assert.equal(editor._form.data.smooth_graph,false);
  assert.equal(editor._styles.className,'style-grid');
  assert.match(editor._styles.innerHTML,/type="radio" name="success_style"/);
  assert.match(editor._styles.innerHTML,/type="radio" name="failure_style"/);
@@ -192,6 +196,7 @@ test('day states have independent filled, outlined, and symbol styles',()=>{
  assert.match(card._renderDot(noGoal),/unavailable-ring/);
  assert.throws(()=>card.setConfig({entity:'sensor.steps',goal:100,failure_style:'invalid'}),/failure_style/);
  assert.throws(()=>card.setConfig({entity:'sensor.steps',goal:100,start_week_on_sunday:'yes'}),/start_week_on_sunday/);
+ assert.throws(()=>card.setConfig({entity:'sensor.steps',goal:100,smooth_graph:'yes'}),/smooth_graph/);
 });
 
 test('progress indicators begin at 12 o’clock and advance clockwise',()=>{
@@ -480,7 +485,7 @@ test('appearance changes preserve selection and an in-flight history request',as
  card._selectedMonth=card._period.start.slice(0,7);
  card._hiddenEntities.add('sensor.steps');
  const selection=card._selected,month=card._selectedMonth,fetchId=card._fetchId;
- card.setConfig({...config,title:'Steps',icon:'mdi:walk',success_style:'symbols',failure_style:'outline',no_data_style:'filled',show_legend:true,start_week_on_sunday:true,unit:'steps',precision:2});
+ card.setConfig({...config,title:'Steps',icon:'mdi:walk',success_style:'symbols',failure_style:'outline',no_data_style:'filled',show_legend:true,smooth_graph:true,start_week_on_sunday:true,unit:'steps',precision:2});
  assert.equal(requests,1);
  assert.equal(card._fetchId,fetchId);
  assert.equal(card._loading,true);
@@ -492,6 +497,7 @@ test('appearance changes preserve selection and an in-flight history request',as
  assert.equal(card._loading,false);
  assert.equal(card._days[0].value,25);
  assert.equal(card._config.title,'Steps');
+ assert.equal(card._config.smooth_graph,true);
  assert.equal(card._selected,selection);
 });
 
@@ -649,6 +655,10 @@ test('graph helpers keep hourly progress cumulative and use marker-scale bar wid
  assert.equal(L.chartBarWidth(9),3);
  assert.equal(L.chartBarWidth(31),3);
  assert.equal(L.chartBarWidth(32),1.5);
+ const spline=L.cubicBSplinePath([{x:0,y:0},{x:1,y:1},{x:2,y:0}]);
+ assert.match(spline,/^M 0 0 C /);
+ assert.match(spline,/ 2 0$/);
+ assert.match(L.cubicBSplinePath([{x:0,y:0},{x:1,y:1},{x:2,y:0}],true),/^L 2 0 C /);
 });
 
 test('graph view stays focused on goal status and uses the native-style header switch',()=>{
@@ -804,6 +814,12 @@ test('single-day graph uses five-minute entity areas today and one result area f
  assert.match(graph,/>6(?: |\u202f)AM<\/span>/);
  assert.doesNotMatch(graph,/:00/);
 
+ card._config.smooth_graph=true;
+ const smoothGraph=card._lineChart(card._days[0]);
+ assert.match(smoothGraph,/ C /);
+ assert.match(smoothGraph,/class="chart-area" d="M 0\.84375 /);
+ card._config.smooth_graph=false;
+
  card._viewMode='chart';
  assert.match(graph,/class="chart-goal-label minimum"[^>]*>Goal<\/span>/);
  const root={innerHTML:'',querySelector(){return null}};
@@ -829,8 +845,11 @@ test('single-day graph uses five-minute entity areas today and one result area f
  card._hass.callWS=message=>{periods.push(message.period);return Promise.resolve(message.period==='5minute'?{}:statistics)};
  await card._loadHourly(true);
  assert.deepEqual(periods,['5minute','hour']);
+ assert.equal(card._hourlyInterval,60*60*1000);
+ card._config.smooth_graph=true;
  card._config.direction='max';
  const limitGraph=card._lineChart(card._days[0]);
+ assert.doesNotMatch(limitGraph,/ C /);
  assert.match(limitGraph,/class="chart-goal limit"/);
  assert.match(limitGraph,/class="chart-goal-label maximum"[^>]*>Limit<\/span>/);
  card._config.direction='min';

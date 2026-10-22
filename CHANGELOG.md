@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.13
+- Added optional smoothing for five-minute graphs.
+
 ## 0.6.12
 - Added five-minute progress, direct point-to-point graph shapes, and one result color for completed days.
 
