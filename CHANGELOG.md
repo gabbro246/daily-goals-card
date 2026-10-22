@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.6.8
+- Simplified the one-day graph to show clean stacked areas without lines on top.
+
 ## 0.6.7
 - Split the one-day graph into colored areas so each measurement's contribution is visible.
 

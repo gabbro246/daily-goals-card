@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.7';
+  const VERSION = '0.6.8';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -414,8 +414,7 @@
     .chart-stack.chart-cap{stroke-linecap:round}
     .chart-stack.hidden{opacity:0}
     .chart-area{fill:var(--series-color);fill-opacity:.32;stroke:none;transition:opacity 180ms ease-in-out}
-    .chart-area-line{fill:none;stroke:var(--series-color);stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke;transition:opacity 180ms ease-in-out}
-    .chart-area.hidden,.chart-area-line.hidden{opacity:0}
+    .chart-area.hidden{opacity:0}
     .chart-empty{height:178px;display:grid;place-items:center;color:var(--goal-muted);font-size:var(--ha-font-size-s,12px)}
     .detail{display:block;margin-top:var(--ha-space-3,12px);text-align:center;color:var(--goal-muted)}
     .oval-detail{margin-top:var(--ha-space-1,4px)}
@@ -943,7 +942,7 @@
         const lower=points.map((point,index)=>`L ${x(point.time)} ${y(stacks[index][entityIndex].lower)}`).reverse().join(' ');
         const hidden=this._hiddenEntities.has(entity)?' hidden':'';
         const style=`style="--series-color:${this._seriesColor(entityIndex)}"`;
-        return `<path class="chart-area${hidden}" d="${upper} ${lower} Z" ${style}/><path class="chart-area-line${hidden}" d="${upper}" ${style}/>`;
+        return `<path class="chart-area${hidden}" d="${upper} ${lower} Z" ${style}/>`;
       }).join('');
       const goalY=row.goal===null?null:y(row.goal);
       const goal=goalY===null?'':`<path class="chart-goal" d="M .5 ${goalY} H 99.5"/>`;
