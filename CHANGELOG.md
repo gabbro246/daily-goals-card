@@ -1,7 +1,11 @@
 # Changelog
 
+## 0.6.9
+- Made one-day stacked areas use solid colors and smooth curves.
+- Simplified goal and limit labels, and made maximum limit lines thinner.
+
 ## 0.6.8
-- Made the one-day graph use solid, smoothly curved stacked areas without lines on top.
+- Simplified the one-day graph to show clean stacked areas without lines on top.
 
 ## 0.6.7
 - Split the one-day graph into colored areas so each measurement's contribution is visible.

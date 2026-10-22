@@ -652,6 +652,7 @@ test('graph helpers keep hourly progress cumulative and use marker-scale bar wid
 test('graph view stays focused on goal status and uses the native-style header switch',()=>{
  const card=new (elements.get('daily-goals-card'))();
  assert.match(card.shadowRoot.innerHTML,/\.chart-goal\{fill:none;stroke:var\(--goal-unavailable\);stroke-width:3;stroke-dasharray:4 8;stroke-linecap:round/);
+ assert.match(card.shadowRoot.innerHTML,/\.chart-goal\.limit\{stroke-width:1\.5\}/);
  assert.match(card.shadowRoot.innerHTML,/\.chart-scroll\{[^}]*overflow-x:hidden/);
  assert.match(card.shadowRoot.innerHTML,/\.chart-goal-label\.minimum\{transform:translateY\(-100%\)\}/);
  assert.match(card.shadowRoot.innerHTML,/\.chart-goal-label\.maximum\{transform:none\}/);
@@ -698,11 +699,12 @@ test('graph view stays focused on goal status and uses the native-style header s
  assert.match(missingChart,/class="chart-cap no-data chart-missing"[^>]*y1="145"[^>]*y2="145"[^>]*stroke-width="10"[^>]*clip-path="url\(#chart-missing-clip-0\)"/);
  assert.match(missingChart,/class="chart-goal" d="M 0\.5 [^"]+H 99\.5"/);
 
- assert.match(missingChart,/class="chart-goal-label minimum"[^>]*>Goal ▲<\/span>/);
+ assert.match(missingChart,/class="chart-goal-label minimum"[^>]*>Goal<\/span>/);
  const minimumLabelTop=Number(missingChart.match(/chart-goal-label minimum" style="top:([\d.]+)px/)[1]);
  card._config.direction='max';
  const limitChart=card._barChart();
- assert.match(limitChart,/class="chart-goal-label maximum"[^>]*>Limit ▼<\/span>/);
+ assert.match(limitChart,/class="chart-goal limit"/);
+ assert.match(limitChart,/class="chart-goal-label maximum"[^>]*>Limit<\/span>/);
  const maximumLabelTop=Number(limitChart.match(/chart-goal-label maximum" style="top:([\d.]+)px/)[1]);
  assert.ok(maximumLabelTop>minimumLabelTop);
  card._config.direction='min';
@@ -795,7 +797,7 @@ test('single-day graph requests hourly statistics and renders stacked entity are
  assert.doesNotMatch(graph,/:00/);
 
  card._viewMode='chart';
- assert.match(graph,/class="chart-goal-label minimum"[^>]*>Goal ▲<\/span>/);
+ assert.match(graph,/class="chart-goal-label minimum"[^>]*>Goal<\/span>/);
  const root={innerHTML:'',querySelector(){return null}};
  card.shadowRoot.getElementById=()=>root;
  card._render=render;
@@ -804,7 +806,9 @@ test('single-day graph requests hourly statistics and renders stacked entity are
  assert.match(root.innerHTML,/First counter/);
  assert.match(root.innerHTML,/30 steps/);
  card._config.direction='max';
- assert.match(card._lineChart(card._days[0]),/class="chart-goal-label maximum"[^>]*>Limit ▼<\/span>/);
+ const limitGraph=card._lineChart(card._days[0]);
+ assert.match(limitGraph,/class="chart-goal limit"/);
+ assert.match(limitGraph,/class="chart-goal-label maximum"[^>]*>Limit<\/span>/);
  card._config.direction='min';
  card._syncPeriod=()=>{};
  card._observeSize=()=>{};

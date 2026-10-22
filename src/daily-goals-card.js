@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.6.8';
+  const VERSION = '0.6.9';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const STATUS_LABELS = {met:'goalMet',missed:'goalMissed',progress:'inProgress','no-data':'noData','no-goal':'goalUnavailable',future:'future'};
@@ -395,6 +395,7 @@
     .chart-canvas{position:relative;height:178px;min-width:0;margin:0 auto}
     .status-chart{position:absolute;inset:0 0 auto;width:100%;height:150px;overflow:visible}
     .chart-goal{fill:none;stroke:var(--goal-unavailable);stroke-width:3;stroke-dasharray:4 8;stroke-linecap:round;vector-effect:non-scaling-stroke}
+    .chart-goal.limit{stroke-width:1.5}
     .chart-goal-label{position:absolute;right:2px;z-index:2;padding-inline-start:4px;background:var(--card-background-color,#fff);color:var(--goal-muted);font-size:var(--ha-font-size-s,12px);line-height:1;pointer-events:none}
     .chart-goal-label.minimum{transform:translateY(-100%)}
     .chart-goal-label.maximum{transform:none}
@@ -905,9 +906,9 @@
       const hits=rows.map((row,index)=>this._chartDayButton(row,100*index/count,100/count)).join('');
       const labelIndexes=this._chartLabelIndexes(rows),singleMonth=rows[0]?.key.slice(0,7)===rows.at(-1)?.key.slice(0,7);
       const labels=labelIndexes.map((index,labelIndex)=>{const edge=count>8?(labelIndex===0?' start':labelIndex===labelIndexes.length-1?' end':''):'';return `<span class="chart-axis-label${edge}" style="left:${100*(index+.5)/count}%">${escapeHTML(this._chartDateLabel(rows[index],index,count,singleMonth))}</span>`}).join('');
-      const goal=goalPath?`<path class="chart-goal" d="${goalPath}"/>`:'';
       const maximum=this._config?.direction==='max';
-      const goalLabel=lastGoalY===null?'':`<span class="chart-goal-label ${maximum?'maximum':'minimum'}" style="top:${maximum?lastGoalY+3:Math.max(12,lastGoalY-3)}px">${escapeHTML(`${this._t(maximum?'limitLine':'goalLine')} ${maximum?'▼':'▲'}`)}</span>`;
+      const goal=goalPath?`<path class="chart-goal${maximum?' limit':''}" d="${goalPath}"/>`:'';
+      const goalLabel=lastGoalY===null?'':`<span class="chart-goal-label ${maximum?'maximum':'minimum'}" style="top:${maximum?lastGoalY+3:Math.max(12,lastGoalY-3)}px">${escapeHTML(this._t(maximum?'limitLine':'goalLine'))}</span>`;
       const canvasWidth=count>92?Math.max(500,Math.ceil(28+count*(barWidth+.5))):null;
       const style=canvasWidth?` style="width:${canvasWidth}px"`:'';
       const scrollClass=canvasWidth?'chart-scroll scrollable':'chart-scroll';
@@ -949,9 +950,9 @@
         return `<path class="chart-area${hidden}" d="${upper} ${lower} Z" ${style}/>`;
       }).join('');
       const goalY=row.goal===null?null:y(row.goal);
-      const goal=goalY===null?'':`<path class="chart-goal" d="M .5 ${goalY} H 99.5"/>`;
       const maximum=this._config?.direction==='max';
-      const goalLabel=goalY===null?'':`<span class="chart-goal-label ${maximum?'maximum':'minimum'}" style="top:${maximum?goalY+3:Math.max(12,goalY-3)}px">${escapeHTML(`${this._t(maximum?'limitLine':'goalLine')} ${maximum?'▼':'▲'}`)}</span>`;
+      const goal=goalY===null?'':`<path class="chart-goal${maximum?' limit':''}" d="M .5 ${goalY} H 99.5"/>`;
+      const goalLabel=goalY===null?'':`<span class="chart-goal-label ${maximum?'maximum':'minimum'}" style="top:${maximum?goalY+3:Math.max(12,goalY-3)}px">${escapeHTML(this._t(maximum?'limitLine':'goalLine'))}</span>`;
       const formatTime=time=>formatter('DateTimeFormat',this._locale(),{timeZone:this._tz(),hour:'numeric'}).format(new Date(time));
       const labels=[0,.25,.5,.75].map(fraction=>`<span class="chart-axis-label${fraction===0?' start':''}" style="left:${100*fraction}%">${escapeHTML(formatTime(start+(end-start)*fraction))}</span>`).join('');
       const hit=this._chartDayButton(row,0,100);
