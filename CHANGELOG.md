@@ -1,7 +1,10 @@
 # Changelog
 
+## 0.7.4
+- Fixed an issue where weekday headings were too wide in narrow views by using one-letter labels.
+
 ## 0.7.3
-- Fixed an issue that left 32×32 markers in some narrow seven-column views, causing them to overlap.
+- Fixed an issue that caused overlapping or inconsistent 12×12 markers in narrow seven-column views.
 
 ## 0.7.2
 - Fixed seven-day rows on cards 300 pixels wide or narrower by using 12×12 markers instead of 32×32 markers.

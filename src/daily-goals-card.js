@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.7.3';
+  const VERSION = '0.7.4';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const FIVE_MINUTE_MS = 300000;
@@ -118,8 +118,8 @@
   };
   const daysInMonth = (year, month) => new Date(Date.UTC(year, month, 0)).getUTCDate();
   const weekOffset = (year, month, day=1, sunday=false) => (new Date(Date.UTC(year,month-1,day)).getUTCDay()+(sunday?0:6))%7;
-  const weekdayLabels = (locale,sunday=false) => Array.from({length:7},(_,i)=>
-    formatter('DateTimeFormat',locale,{timeZone:'UTC',weekday:'short'}).format(new Date(Date.UTC(2026,0,(sunday?4:5)+i)))
+  const weekdayLabels = (locale,sunday=false,narrow=false) => Array.from({length:7},(_,i)=>
+    formatter('DateTimeFormat',locale,{timeZone:'UTC',weekday:narrow?'narrow':'short'}).format(new Date(Date.UTC(2026,0,(sunday?4:5)+i)))
   );
   const makeKeys = (start,end,locale='en') => {
     const count = dayDiff(start,end);
@@ -454,15 +454,6 @@
     @container (max-width:300px){
       .month-collection{grid-template-columns:1fr;gap:var(--ha-space-3,12px)}
       .mini-grid{--day-gap:3px 1px}
-      :is(.seven-columns,.month-grid) .dot{width:min(12px,100%);height:auto;aspect-ratio:1;border-width:1.5px;font-size:0}
-      :is(.seven-columns,.month-grid) .dot > span{display:none}
-      :is(.seven-columns,.month-grid) .dot.progress,:is(.seven-columns,.month-grid) .dot.multi-current{border-width:0}
-      :is(.seven-columns,.month-grid) .dot.no-data.marker-filled,:is(.seven-columns,.month-grid) .dot.no-goal.marker-filled{border-width:1.5px}
-      :is(.seven-columns,.month-grid) .dot .progress-ring .track,:is(.seven-columns,.month-grid) .dot .progress-ring .value,:is(.seven-columns,.month-grid) .dot .progress-ring .series-value,:is(.seven-columns,.month-grid) .dot .progress-ring .series-cap,:is(.seven-columns,.month-grid) .dot .unavailable-ring circle{stroke-width:1.5;vector-effect:non-scaling-stroke}
-      :is(.seven-columns,.month-grid) .dot.marker-symbols::after{position:absolute;inset:0;display:grid;place-items:center;font-size:11px;font-weight:var(--ha-font-weight-bold,700);line-height:1}
-      :is(.seven-columns,.month-grid) .dot.met.marker-symbols::after{content:"\\2713"}
-      :is(.seven-columns,.month-grid) .dot.missed.marker-symbols::after{content:"\\00d7"}
-      :is(.seven-columns,.month-grid) .dot.no-data.marker-symbols::after,:is(.seven-columns,.month-grid) .dot.no-goal.marker-symbols::after{content:"\\2013"}
     }
   `;
 
@@ -470,7 +461,7 @@
     constructor(){
       super();this.attachShadow({mode:'open'});
       this._config=null;this._hass=null;this._period=null;this._signature='';this._sourceSignature='';this._selected=null;this._selectedMonth=null;
-      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._resizeObserver=null;this._lastHeight=0;this._hiddenEntities=new Set();this._restartOnConnect=false;this._viewMode='circles';
+      this._days=[];this._loading=false;this._error='';this._clock=Date.now();this._fetchId=0;this._timer=null;this._resizeObserver=null;this._lastHeight=0;this._compactMarkers=false;this._hiddenEntities=new Set();this._restartOnConnect=false;this._viewMode='circles';
       this._hourly=[];this._hourlyKey='';this._hourlyLoading=false;this._hourlyError='';this._hourlyFetchId=0;this._hourlyInterval=HOUR_MS;this._restartHourlyOnConnect=false;
       this.shadowRoot.innerHTML=`<style>${css}</style><ha-card><div id="content"></div></ha-card>`;
       this.shadowRoot.addEventListener('click', (e)=>{
@@ -557,8 +548,12 @@
       if(this._resizeObserver||typeof ResizeObserver==='undefined')return;
       const card=this.shadowRoot?.querySelector?.('ha-card');if(!card)return;
       this._resizeObserver=new ResizeObserver((entries)=>{
-        this._syncOvalGeometry();
-        const height=Math.round(entries[0]?.contentRect?.height||card.offsetHeight||0);
+        const bounds=entries[0]?.contentRect;
+        const width=bounds?.width||card.offsetWidth||0;
+        const compact=width>0&&width<=300;
+        if(compact!==this._compactMarkers){this._compactMarkers=compact;this._render()}
+        else this._syncOvalGeometry();
+        const height=Math.round(bounds?.height||card.offsetHeight||0);
         if(!height||height===this._lastHeight)return;
         this._lastHeight=height;
         this.dispatchEvent(new CustomEvent('card-updated',{bubbles:true,composed:true}));
@@ -751,7 +746,7 @@
     _formatDate(key,monthOnly=false){
       return this._dateLabel(key,monthOnly?{year:'numeric',month:'long'}:{day:'numeric',month:'short',year:'numeric'});
     }
-    _weekday(key){return this._dateLabel(key,{weekday:'short'})}
+    _weekday(key,narrow=false){return this._dateLabel(key,{weekday:narrow?'narrow':'short'})}
     _format(n){return formatValue(n,this._locale(),this._config?.precision)}
     _label(row){
       if(!row)return this._t('noSelection');
@@ -853,7 +848,7 @@
     _view(content){
       return `<div class="fill">${content}${this._selectionDetail()}</div>`;
     }
-    _dayGrid(rows,{className='month-grid',labels=weekdayLabels(this._locale(),weekStartsSunday(this._config)),prefix=0,mini=false,columns}={}){
+    _dayGrid(rows,{className='month-grid',labels=weekdayLabels(this._locale(),weekStartsSunday(this._config),this._compactMarkers),prefix=0,mini=false,columns}={}){
       const headings=labels.map(label=>`<span class="weekday">${escapeHTML(label)}</span>`).join('');
       const cells='<span></span>'.repeat(prefix)+rows.map(row=>this._renderDot(row,mini)).join('');
       return `<div class="${className}"${columns?` style="--day-columns:${columns}"`:''}>${headings}${cells}</div>`;
@@ -861,7 +856,7 @@
     _monthGrid(year,month,small=false,map=new Map(this._days.map(row=>[row.key,row]))){
       const prefix=weekOffset(year,month,1,weekStartsSunday(this._config));
       const rows=Array.from({length:daysInMonth(year,month)},(_,index)=>map.get(`${year}-${String(month).padStart(2,'0')}-${String(index+1).padStart(2,'0')}`));
-      return this._dayGrid(rows,{className:small?'mini-grid':'month-grid',prefix,mini:small,labels:small?[]:undefined});
+      return this._dayGrid(rows,{className:small?'mini-grid':'month-grid',prefix,mini:small||this._compactMarkers,labels:small?[]:undefined});
     }
     _miniMonths(){
       if(this._selectedMonth){
@@ -1033,9 +1028,9 @@
     }
     _weekView(){
       const columns=Math.min(7,this._days.length);
-      const labels=this._days.slice(0,columns).map(row=>this._weekday(row.key));
+      const labels=this._days.slice(0,columns).map(row=>this._weekday(row.key,columns===7&&this._compactMarkers));
       const className=columns===7?'strip seven-columns':'strip';
-      return this._view(this._dayGrid(this._days,{className,labels,columns}));
+      return this._view(this._dayGrid(this._days,{className,labels,columns,mini:columns===7&&this._compactMarkers}));
     }
     _monthView(){
       const [year,month]=this._days[0].key.split('-').map(Number);
@@ -1046,7 +1041,7 @@
       if(!first)return '';
       const [year,month,day]=first.split('-').map(Number);
       const prefix=weekOffset(year,month,day,weekStartsSunday(this._config));
-      return this._view(this._dayGrid(this._days,{prefix}));
+      return this._view(this._dayGrid(this._days,{prefix,mini:this._compactMarkers}));
     }
     _seriesLegend(row=this._days.find(day=>day.key===this._today())){
       if(!shouldShowLegend(this._config))return '';

@@ -39,6 +39,8 @@ test('day range and leap-year months',()=>{
  assert.equal(L.weekOffset(2025,1,1,true),3);
  assert.equal(L.weekdayLabels('en',false)[0],'Mon');
  assert.equal(L.weekdayLabels('en',true)[0],'Sun');
+ assert.equal(L.weekdayLabels('en',false,true)[0],'M');
+ assert.equal(L.weekdayLabels('en',true,true)[0],'S');
  assert.equal(L.weekStartsSunday({}),false);
  assert.equal(L.weekStartsSunday({start_week_on_sunday:true}),true);
  const weekStart=L.localizedFormSchema('en').find(field=>field.name==='start_week_on_sunday');
@@ -116,6 +118,37 @@ test('an interrupted history load restarts after reconnect',()=>{
  assert.equal(loads,2);
  assert.equal(card._restartOnConnect,false);
  card.disconnectedCallback();
+});
+
+test('card width switches between canonical big and small marker designs',()=>{
+ const Card=elements.get('daily-goals-card');
+ let callback,observed,disconnected=false,renders=0,syncs=0;
+ globals.ResizeObserver=class {
+  constructor(handler){callback=handler}
+  observe(target){observed=target}
+  disconnect(){disconnected=true}
+ };
+ const card=new Card(),host={offsetWidth:400,offsetHeight:0};
+ card.shadowRoot.querySelector=selector=>selector==='ha-card'?host:null;
+ card._render=()=>{renders++};
+ card._syncOvalGeometry=()=>{syncs++};
+ card._observeSize();
+ assert.equal(observed,host);
+ callback([{contentRect:{width:300,height:0}}]);
+ assert.equal(card._compactMarkers,true);
+ assert.equal(renders,1);
+ callback([{contentRect:{width:299,height:0}}]);
+ assert.equal(card._compactMarkers,true);
+ assert.equal(renders,1);
+ assert.equal(syncs,1);
+ callback([{contentRect:{width:300.1,height:0}}]);
+ assert.equal(card._compactMarkers,false);
+ assert.equal(renders,2);
+ callback([{contentRect:{width:400,height:0}}]);
+ assert.equal(syncs,2);
+ card.disconnectedCallback();
+ assert.equal(disconnected,true);
+ delete globals.ResizeObserver;
 });
 
 test('measurement entities support legacy cards and prefer plural config',()=>{
@@ -259,9 +292,9 @@ test('status colors, sizes, and outlines are consistent within each visual scale
  assert.match(source,/\.month-collection\{display:grid;grid-template-columns:repeat\(3,/);
  assert.match(source,/@media\(max-width:340px\)\{\.month-collection\{gap:/);
  assert.match(source,/@container \(max-width:300px\)\{\s+\.month-collection\{grid-template-columns:1fr/);
- assert.match(source,/:is\(\.seven-columns,\.month-grid\) \.dot\{width:min\(12px,100%\);height:auto;aspect-ratio:1;border-width:1\.5px;font-size:0\}/);
- assert.match(source,/:is\(\.seven-columns,\.month-grid\) \.dot\.progress,:is\(\.seven-columns,\.month-grid\) \.dot\.multi-current\{border-width:0\}/);
- assert.match(source,/:is\(\.seven-columns,\.month-grid\) \.dot \.progress-ring \.track[^\n]+stroke-width:1\.5;vector-effect:non-scaling-stroke/);
+ const compactStyles=source.match(/@container \(max-width:300px\)\{([\s\S]*?)\n    \}/)?.[1];
+ assert.ok(compactStyles);
+ assert.doesNotMatch(compactStyles,/\.dot/);
  assert.match(source,/\.many-months\.unscrolled\{max-height:none;overflow:visible\}/);
  assert.doesNotMatch(source,/class="summary"/);
 });
@@ -347,6 +380,18 @@ test('rolling month and progress rings use fixed marker scales',()=>{
  assert.match(rolling,/stroke-width="3"/);
  assert.match(card._renderDot(card._days.at(-1),true),/viewBox="0 0 12 12".*r="5\.25".*stroke-width="1\.5"/);
  card._days=L.makeKeys(L.keyPlus(today,-365),today).map(key=>({key,value:25,goal:100,status:key===today?'progress':'missed',parts:[{entity:'sensor.steps',value:25}]}));
+ card._compactMarkers=true;
+ const compactWeek=card._weekView(),compactRolling=card._rollingMonthView();
+ assert.match(compactWeek,/class="mini-dot progress"/);
+ assert.match(compactRolling,/class="mini-dot progress"/);
+ assert.doesNotMatch(compactWeek,/class="dot /);
+ assert.doesNotMatch(compactRolling,/class="dot /);
+ assert.match(compactWeek,/viewBox="0 0 12 12".*r="5\.25".*stroke-width="1\.5"/);
+ assert.match(compactRolling,/viewBox="0 0 12 12".*r="5\.25".*stroke-width="1\.5"/);
+ assert.doesNotMatch(compactWeek,/class="weekday">(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)<\/span>/);
+ assert.match(compactRolling,/class="weekday">M<\/span>/);
+ assert.doesNotMatch(compactRolling,/class="weekday">Mon<\/span>/);
+ card._compactMarkers=false;
  assert.match(card._miniMonths(),/stroke-width="1\.5"/);
  assert.doesNotMatch(card._miniMonths(),/stroke-width="2.75"/);
 });
