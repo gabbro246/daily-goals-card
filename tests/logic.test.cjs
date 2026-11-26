@@ -151,6 +151,15 @@ test('card width switches between canonical big and small marker designs',()=>{
  delete globals.ResizeObserver;
 });
 
+test('sections reserve the rendered card height as content changes',()=>{
+ const Card=elements.get('daily-goals-card');
+ const card=new Card();
+ const options=card.getGridOptions();
+ assert.equal(options.columns,12);
+ assert.equal(options.rows,'auto');
+ assert.equal(options.min_columns,6);
+});
+
 test('measurement entities support legacy cards and prefer plural config',()=>{
  assert.equal(Array.from(L.measurementEntities({entity:'sensor.one'})).join(','),'sensor.one');
  assert.equal(Array.from(L.measurementEntities({entity:'sensor.one',entities:['sensor.two','sensor.two']})).join(','),'sensor.two');
@@ -463,7 +472,7 @@ test('every day view exposes toggleable day selection',()=>{
  assert.doesNotMatch(card._dayView(row),/class="calculation"/);
  card.shadowRoot.listeners.click(click);
  assert.equal(card._selected,row.key);
- assert.equal(Object.hasOwn(card.getGridOptions(),'rows'),false);
+ assert.equal(card.getGridOptions().rows,'auto');
  assert.equal(card.getGridOptions().min_columns,6);
 });
 test('card state uses remaining amount for a day and completion count for ranges',()=>{

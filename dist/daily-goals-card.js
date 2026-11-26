@@ -3,7 +3,7 @@
  */
 (() => {
   'use strict';
-  const VERSION = '0.7.4';
+  const VERSION = '0.7.5';
   const DAY_MS = 86400000;
   const HOUR_MS = 3600000;
   const FIVE_MINUTE_MS = 300000;
@@ -543,7 +543,7 @@
       const height=this.shadowRoot?.querySelector?.('ha-card')?.offsetHeight;
       return height?Math.max(1,Math.ceil(height/50)):5;
     }
-    getGridOptions(){return {columns:12,min_columns:6}}
+    getGridOptions(){return {columns:12,rows:'auto',min_columns:6}}
     _observeSize(){
       if(this._resizeObserver||typeof ResizeObserver==='undefined')return;
       const card=this.shadowRoot?.querySelector?.('ha-card');if(!card)return;

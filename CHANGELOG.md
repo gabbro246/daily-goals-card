@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.7.5
+- Fixed cards sometimes overlapping while loading or after their data appeared.
+
 ## 0.7.4
 - Fixed an issue where weekday headings were too wide in narrow views by using one-letter labels.
 
